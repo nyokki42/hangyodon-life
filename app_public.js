@@ -448,299 +448,6 @@ function isHangyodonSleepingNow() {
   return isSleepingAtInstant(hangyodon, Date.now());
 }
 
-function canOperate() {
-  if (!hangyodon || hangyodon.game_over) {
-    setStatusMessage('ゲームオーバー中は操作できません。スタートから新しく始めてください。', 'error');
-    return false;
-  }
-
-  if (isHangyodonSleepingNow()) {
-    setStatusMessage('ハンギョドンは寝ています。起きてからお世話してください。', 'info');
-    return false;
-  }
-
-  return true;
-}
-
-function addExperience(amount) {
-  hangyodon.exp = Math.max(0, hangyodon.exp + amount);
-
-  while (hangyodon.exp >= requiredExp(hangyodon.level)) {
-    hangyodon.exp -= requiredExp(hangyodon.level);
-    hangyodon.level += 1;
-    setStatusMessage(`レベル ${hangyodon.level} になりました！`, 'success');
-  }
-}
-
-function finishAction(message, type = 'success') {
-  saveGame();
-  updateUI();
-  setStatusMessage(message, type);
-}
-
-function showFeedMenu() {
-  if (!canOperate()) return;
-
-  const menu = document.getElementById('feed-menu');
-  const options = document.getElementById('feed-options');
-  if (!menu || !options) return;
-
-  options.innerHTML = '';
-  for (const [item, qty] of Object.entries(hangyodon.inventory)) {
-    const info = shopItems[item];
-    if (!info || qty <= 0) continue;
-
-    const button = document.createElement('button');
-    button.type = 'button';
-    button.dataset.item = item;
-    button.textContent = `${info.label} x${qty}`;
-    button.addEventListener('click', () => feedHangyodon(item));
-    options.appendChild(button);
-  }
-
-  if (!options.children.length) {
-    setStatusMessage('食べ物を持っていません。ショップで購入してください。', 'info');
-    return;
-  }
-
-  menu.style.display = 'block';
-}
-
-function hideFeedMenu() {
-  const menu = document.getElementById('feed-menu');
-  if (menu) menu.style.display = 'none';
-}
-
-function feedHangyodon(item) {
-  if (!canOperate()) return;
-
-  const info = shopItems[item];
-  if (!info || !hangyodon.inventory[item]) {
-    setStatusMessage('その食べ物は持っていません。', 'error');
-    return;
-  }
-
-  hangyodon.inventory[item] -= 1;
-  if (hangyodon.inventory[item] <= 0) delete hangyodon.inventory[item];
-  hangyodon.hunger = clamp(hangyodon.hunger + info.hunger, 0, 100);
-  hangyodon.mood = clamp(hangyodon.mood + 5, -100, 100);
-  hideFeedMenu();
-  finishAction(`${info.label}をあげました！`);
-}
-
-function showWalkPopup(message) {
-  const popup = document.getElementById('walk-popup');
-  const messageEl = document.getElementById('walk-popup-message');
-  if (messageEl) messageEl.textContent = message;
-  if (popup) popup.style.display = 'flex';
-}
-
-function closeWalkPopup() {
-  const popup = document.getElementById('walk-popup');
-  if (popup) popup.style.display = 'none';
-}
-
-function walkHangyodon() {
-  if (!canOperate()) return;
-  if (hangyodon.hunger <= 0) {
-    setStatusMessage('お腹が空きすぎています。先にご飯をあげてください。', 'error');
-    return;
-  }
-
-  hangyodon.hunger = Math.max(0, hangyodon.hunger - 10);
-  if (Math.random() < 0.7) {
-    const money = 50;
-    addExperience(20);
-    hangyodon.mood = clamp(hangyodon.mood + 10, -100, 100);
-    hangyodon.money += money;
-    if (Math.random() < 0.35) {
-      hangyodon.inventory.onigiri = (hangyodon.inventory.onigiri || 0) + 1;
-      showWalkPopup(`散歩は大成功！ ${money}円とおにぎりを見つけた！`);
-    } else {
-      showWalkPopup(`楽しく散歩しました！ ${money}円を見つけた！`);
-    }
-    finishAction('散歩から帰ってきました！');
-  } else {
-    hangyodon.money = Math.max(0, hangyodon.money - 30);
-    hangyodon.mood = clamp(hangyodon.mood - 10, -100, 100);
-    addExperience(-10);
-    showWalkPopup('散歩中に転んでしまいました…。');
-    finishAction('散歩から帰ってきました。', 'info');
-  }
-}
-
-function showBathPopup(message) {
-  const popup = document.getElementById('bath-popup');
-  const messageEl = document.getElementById('bath-popup-message');
-  if (messageEl) messageEl.textContent = message;
-  if (popup) popup.style.display = 'flex';
-}
-
-function closeBathPopup() {
-  const popup = document.getElementById('bath-popup');
-  if (popup) popup.style.display = 'none';
-}
-
-function batheHangyodon() {
-  if (!canOperate()) return;
-
-  const today = new Date().toDateString();
-  const lastBath = hangyodon.lastBathDate ? new Date(hangyodon.lastBathDate).toDateString() : null;
-  if (lastBath === today) {
-    setStatusMessage('お風呂は1日1回までです。', 'info');
-    return;
-  }
-
-  hangyodon.lastBathDate = new Date().toISOString();
-  hangyodon.mood = clamp(hangyodon.mood + 20, -100, 100);
-  showBathPopup('お風呂に入ってさっぱりした！');
-  finishAction('お風呂に入りました！');
-}
-
-function buyShopItem(item) {
-  if (!canOperate()) return;
-
-  const info = shopItems[item];
-  if (!info) return;
-  if (hangyodon.money < info.price) {
-    setStatusMessage('お金が足りません。', 'error');
-    return;
-  }
-
-  hangyodon.money -= info.price;
-  hangyodon.inventory[item] = (hangyodon.inventory[item] || 0) + 1;
-  finishAction(`${info.label}を購入しました！`);
-}
-
-function updateJobDisplay() {
-  const timer = document.getElementById('job-timer');
-  const money = document.getElementById('job-money');
-  if (timer) timer.textContent = String(jobGameData.timeLeft);
-  if (money) money.textContent = String(jobGameData.earnedMoney);
-}
-
-function startJob() {
-  if (!canOperate() || jobGameData.isActive) return;
-
-  jobGameData.isActive = true;
-  jobGameData.earnedMoney = 0;
-  jobGameData.timeLeft = 10;
-  const game = document.getElementById('job-minigame');
-  const finishButton = document.getElementById('job-finish-btn');
-  if (game) game.style.display = 'flex';
-  if (finishButton) finishButton.style.display = 'block';
-  updateJobDisplay();
-  updateUI();
-
-  jobGameData.timerInterval = setInterval(() => {
-    jobGameData.timeLeft -= 1;
-    updateJobDisplay();
-    if (jobGameData.timeLeft <= 0) finishJob();
-  }, 1000);
-}
-
-function workAtJob() {
-  if (!jobGameData.isActive || !canOperate()) return;
-  const earned = Math.floor(Math.random() * 16) + 5;
-  jobGameData.earnedMoney += earned;
-  updateJobDisplay();
-}
-
-function finishJob() {
-  if (!jobGameData.isActive) return;
-
-  if (jobGameData.timerInterval) clearInterval(jobGameData.timerInterval);
-  jobGameData.timerInterval = null;
-  jobGameData.isActive = false;
-  jobGameData.lastJobTime = Date.now();
-
-  const game = document.getElementById('job-minigame');
-  const finishButton = document.getElementById('job-finish-btn');
-  if (game) game.style.display = 'none';
-  if (finishButton) finishButton.style.display = 'none';
-
-  hangyodon.money += jobGameData.earnedMoney;
-  addExperience(Math.max(5, Math.floor(jobGameData.earnedMoney / 10)));
-  finishAction(`${jobGameData.earnedMoney}円を稼ぎました！`);
-}
-
-function resetAll() {
-  if (!canOperate()) return;
-  const password = window.prompt('管理者パスワードを入力してください。');
-  if (password === null) return;
-  if (password !== '1234') {
-    setStatusMessage('パスワードが違います。', 'error');
-    return;
-  }
-
-  resetGame();
-  setStatusMessage('ゲームを全リセットしました。', 'success');
-}
-
-function registerGameActionHandlers() {
-  if (feedBtn) feedBtn.addEventListener('click', showFeedMenu);
-
-  const walkBtn = document.getElementById('walk-btn');
-  const bathBtn = document.getElementById('bath-btn');
-  const jobBtn = document.getElementById('job-btn');
-  const resetBtn = document.getElementById('reset-all-btn');
-  const feedCancel = document.getElementById('feed-cancel');
-  const walkPopupOk = document.getElementById('walk-popup-ok');
-  const bathPopupOk = document.getElementById('bath-popup-ok');
-  const jobWorkBtn = document.getElementById('job-work-btn');
-  const jobFinishBtn = document.getElementById('job-finish-btn');
-
-  if (walkBtn) walkBtn.addEventListener('click', walkHangyodon);
-  if (bathBtn) bathBtn.addEventListener('click', batheHangyodon);
-  if (jobBtn) jobBtn.addEventListener('click', startJob);
-  if (resetBtn) resetBtn.addEventListener('click', resetAll);
-  if (feedCancel) feedCancel.addEventListener('click', hideFeedMenu);
-  if (walkPopupOk) walkPopupOk.addEventListener('click', closeWalkPopup);
-  if (bathPopupOk) bathPopupOk.addEventListener('click', closeBathPopup);
-  if (jobWorkBtn) jobWorkBtn.addEventListener('click', workAtJob);
-  if (jobFinishBtn) jobFinishBtn.addEventListener('click', finishJob);
-
-  document.querySelectorAll('#shop button').forEach(button => {
-    button.addEventListener('click', () => buyShopItem(button.dataset.item));
-  });
-}
-
-let blinkLoopActive = false;
-let blinkTimeoutId = null;
-let blinkSwitchTimeoutId = null;
-
-function updateHangyoImage() {
-  if (!hangyoImg || !hangyodon) return;
-
-  const sleepingNow = isHangyodonSleepingNow();
-
-  if (hangyodon.game_over) {
-    hangyoImg.src = 'hangyo_open.png';
-    return;
-  }
-
-  if (sleepingNow) {
-    hangyoImg.src = 'hangyo_sleep.png';
-    return;
-  }
-
-  if (hangyoImg.src.endsWith('/hangyo_sleep.png')) {
-    hangyoImg.src = 'hangyo_open.png';
-  }
-}
-
-function stopBlinkLoop() {
-  blinkLoopActive = false;
-  if (blinkTimeoutId) {
-    clearTimeout(blinkTimeoutId);
-    blinkTimeoutId = null;
-  }
-  if (blinkSwitchTimeoutId) {
-    clearTimeout(blinkSwitchTimeoutId);
-    blinkSwitchTimeoutId = null;
-  }
-}
-
 function updateUI() {
   const gameContainer = document.querySelector('.game');
   const startScreen = document.getElementById('start-screen');
@@ -756,7 +463,15 @@ function updateUI() {
   const sleepNow = isHangyodonSleepingNow();
   hangyodon.sleeping = sleepNow;
 
-  updateHangyoImage();
+  if (hangyoImg) {
+    if (hangyodon.game_over) {
+      hangyoImg.src = 'hangyo_open.png';
+    } else if (sleepNow) {
+      hangyoImg.src = 'hangyo_sleep.png';
+    } else {
+      hangyoImg.src = 'hangyo_open.png';
+    }
+  }
 
   const hungerBarVisible = hungerBar;
   if (hungerBarVisible) {
@@ -789,12 +504,9 @@ function updateUI() {
     if (jobGameData.lastJobTime && (now - jobGameData.lastJobTime) < cooldownMs) {
       jobBtn.disabled = true;
     } else {
-      jobBtn.disabled = hangyodon.game_over || sleepNow || jobGameData.isActive;
+      jobBtn.disabled = hangyodon.game_over || sleepNow;
     }
   }
-
-  const resetBtn = document.getElementById('reset-all-btn');
-  if (resetBtn) resetBtn.disabled = hangyodon.game_over || sleepNow;
 
   const moodEl = document.getElementById('mood-value');
   if (moodEl) moodEl.textContent = hangyodon.mood;
@@ -831,32 +543,328 @@ function updateUI() {
 }
 
 function randomBlink() {
-  if (!hangyoImg || !hangyodon || hangyodon.game_over || isHangyodonSleepingNow()) {
-    updateHangyoImage();
-    return;
-  }
-
-  blinkLoopActive = true;
   const randomTime = Math.random() * 4000 + 2000;
-  blinkTimeoutId = setTimeout(() => {
-    if (!hangyoImg || !hangyodon || hangyodon.game_over || isHangyodonSleepingNow()) {
-      updateHangyoImage();
-      stopBlinkLoop();
-      return;
-    }
-
-    hangyoImg.src = 'hangyo_close.png';
-    blinkSwitchTimeoutId = setTimeout(() => {
-      if (!hangyoImg || !hangyodon || hangyodon.game_over || isHangyodonSleepingNow()) {
-        updateHangyoImage();
-        stopBlinkLoop();
-        return;
-      }
-
-      hangyoImg.src = 'hangyo_open.png';
-      blinkTimeoutId = null;
-      blinkSwitchTimeoutId = null;
+  setTimeout(() => {
+    if (hangyoImg) hangyoImg.src = 'hangyo_close.png';
+    setTimeout(() => {
+      if (hangyoImg) hangyoImg.src = 'hangyo_open.png';
       randomBlink();
     }, 200);
   }, randomTime);
 }
+
+function generateComment() {
+  if (hangyodon.sleeping) {
+    return 'ZZZ...';
+  }
+
+  const now = new Date();
+  const h = now.getHours();
+  const comments = [];
+
+  if (hangyodon.hunger <= 20) comments.push('お腹すいた...');
+  if (hangyodon.mood < 0) comments.push('ちょっと元気ないかも');
+  if (hangyodon.mood > 50) comments.push('いい気分！');
+  if (h >= 6 && h < 12) comments.push('朝だね〜');
+  if (h >= 12 && h < 18) comments.push('お昼だよ！');
+  if (h >= 18 && h < 22) comments.push('夕方の時間だ〜');
+
+  comments.push('何かいいことあるかな？');
+  comments.push('ふふ、気まぐれだよ。');
+
+  return comments[Math.floor(Math.random() * comments.length)];
+}
+
+function showComment() {
+  const bubble = document.getElementById('comment-bubble');
+  if (!bubble) return;
+  bubble.textContent = generateComment();
+  bubble.style.display = 'block';
+  setTimeout(() => {
+    bubble.style.display = 'none';
+  }, 9000);
+}
+
+function isPushSupported() {
+  return 'Notification' in window && 'serviceWorker' in navigator && 'PushManager' in window;
+}
+
+function urlBase64ToUint8Array(base64String) {
+  if (!base64String || base64String.includes('PASTE_') || base64String.includes('YOUR_')) {
+    return new Uint8Array();
+  }
+
+  const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
+  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+  const binary = atob(base64);
+  const output = new Uint8Array(binary.length);
+
+  for (let i = 0; i < binary.length; i += 1) {
+    output[i] = binary.charCodeAt(i);
+  }
+
+  return output;
+}
+
+function updatePushButtons(isEnabled) {
+  const enableBtn = document.getElementById('enable-push-btn');
+  const disableBtn = document.getElementById('disable-push-btn');
+  const helpText = document.getElementById('push-help-text');
+
+  if (enableBtn) enableBtn.style.display = isEnabled ? 'none' : 'block';
+  if (disableBtn) disableBtn.style.display = isEnabled ? 'block' : 'none';
+  if (helpText) {
+    helpText.textContent = isEnabled ? 'この端末では通知を受け取る設定です。' : 'スマートフォンに空腹時の通知を受け取れます。';
+  }
+
+  localStorage.setItem(PUSH_STORAGE_KEY, isEnabled ? '1' : '0');
+}
+
+async function registerServiceWorker() {
+  if (!('serviceWorker' in navigator)) return false;
+
+  try {
+    const registration = await navigator.serviceWorker.register('./sw.js', { scope: './' });
+    return !!registration;
+  } catch (error) {
+    console.error('Service Worker registration error:', error);
+    return false;
+  }
+}
+
+async function savePushSubscriptionToSupabase(subscription) {
+  if (!supabaseClient) {
+    setStatusMessage('Supabaseの接続が無いため、通知購読を保存できません。', 'error');
+    return false;
+  }
+
+  if (!subscription || !subscription.endpoint) return false;
+
+  const keyP256dh = subscription.getKey ? subscription.getKey('p256dh') : null;
+  const keyAuth = subscription.getKey ? subscription.getKey('auth') : null;
+
+  const payload = {
+    pet_id: 1,
+    endpoint: subscription.endpoint,
+    p256dh: keyP256dh ? arrayBufferToBase64(keyP256dh) : null,
+    auth: keyAuth ? arrayBufferToBase64(keyAuth) : null,
+    is_active: true,
+    platform: /Android/i.test(navigator.userAgent) ? 'android' : /iPhone|iPad|iPod/i.test(navigator.userAgent) ? 'ios' : 'browser',
+    device_label: navigator.userAgent,
+    updated_at: new Date().toISOString()
+  };
+
+  const { error } = await supabaseClient.from('push_subscriptions').upsert(payload, { onConflict: 'endpoint' });
+  if (error) {
+    console.error('Push subscription save error:', error);
+    setStatusMessage('通知購読の保存に失敗しました。', 'error');
+    return false;
+  }
+
+  return true;
+}
+
+async function removePushSubscriptionFromSupabase(endpoint) {
+  if (!supabaseClient || !endpoint) return;
+
+  await supabaseClient.from('push_subscriptions').update({ is_active: false, updated_at: new Date().toISOString() }).eq('endpoint', endpoint);
+}
+
+function arrayBufferToBase64(buffer) {
+  let binary = '';
+  const bytes = new Uint8Array(buffer);
+  for (let i = 0; i < bytes.byteLength; i += 1) {
+    binary += String.fromCharCode(bytes[i]);
+  }
+  return btoa(binary);
+}
+
+async function enablePushNotifications() {
+  if (!isPushSupported()) {
+    setStatusMessage('この端末ではWeb Pushが使えません。iPhoneではホーム画面に追加してから試してください。', 'error');
+    return;
+  }
+
+  if (!('Notification' in window)) {
+    setStatusMessage('ブラウザが通知APIをサポートしていません。', 'error');
+    return;
+  }
+
+  if (Notification.permission === 'default') {
+    const permission = await Notification.requestPermission();
+    if (permission !== 'granted') {
+      setStatusMessage('通知の許可が必要です。設定から通知をオンにしてください。', 'error');
+      return;
+    }
+  }
+
+  if (Notification.permission !== 'granted') {
+    setStatusMessage('通知が拒否されています。設定からONにしてください。', 'error');
+    return;
+  }
+
+  if (!PUSH_VAPID_PUBLIC_KEY || PUSH_VAPID_PUBLIC_KEY.includes('PASTE_') || PUSH_VAPID_PUBLIC_KEY.includes('YOUR_')) {
+    setStatusMessage('VAPID公開鍵が未設定です。Supabase Secret と app.js の公開鍵を設定してください。', 'error');
+    return;
+  }
+
+  await registerServiceWorker();
+
+  const registration = await navigator.serviceWorker.ready;
+  let subscription = await registration.pushManager.getSubscription();
+
+  if (!subscription) {
+    subscription = await registration.pushManager.subscribe({
+      userVisibleOnly: true,
+      applicationServerKey: urlBase64ToUint8Array(PUSH_VAPID_PUBLIC_KEY)
+    });
+  }
+
+  const saved = await savePushSubscriptionToSupabase(subscription);
+  if (saved) {
+    updatePushButtons(true);
+    setStatusMessage('この端末で通知をONにしました。', 'success');
+  }
+}
+
+async function disablePushNotifications() {
+  if (!('serviceWorker' in navigator)) return;
+
+  try {
+    const registration = await navigator.serviceWorker.ready;
+    const subscription = await registration.pushManager.getSubscription();
+
+    if (subscription) {
+      await subscription.unsubscribe();
+      await removePushSubscriptionFromSupabase(subscription.endpoint);
+    }
+
+    updatePushButtons(false);
+    setStatusMessage('通知をOFFにしました。', 'info');
+  } catch (error) {
+    console.error('Push unsubscribe error:', error);
+    setStatusMessage('通知の停止に失敗しました。', 'error');
+  }
+}
+
+function registerPushNotificationHandlers() {
+  const enableBtn = document.getElementById('enable-push-btn');
+  const disableBtn = document.getElementById('disable-push-btn');
+
+  if (enableBtn) {
+    enableBtn.addEventListener('click', enablePushNotifications);
+  }
+
+  if (disableBtn) {
+    disableBtn.addEventListener('click', disablePushNotifications);
+  }
+
+  const isEnabled = ('Notification' in window && Notification.permission === 'granted') || localStorage.getItem(PUSH_STORAGE_KEY) === '1';
+  updatePushButtons(isEnabled);
+}
+
+function maybeShowLocalHungerNotification() {
+  if (!('Notification' in window) || Notification.permission !== 'granted') return;
+  if (hangyodon.hunger > 20) return;
+  if (isHangyodonSleepingNow()) return;
+
+  const today = new Date().toDateString();
+  const lastNotified = hangyodon.lastHungerNotificationDate ? new Date(hangyodon.lastHungerNotificationDate).toDateString() : null;
+
+  if (lastNotified === today) return;
+
+  hangyodon.lastHungerNotificationDate = new Date().toISOString();
+  new Notification('🍙 ハンギョドンがお腹すいてるよ！', {
+    body: 'ご飯をあげてね。',
+    icon: 'hangyo_open.png',
+    tag: 'hangyodon-hunger-low'
+  });
+}
+
+setInterval(() => {
+  if (!hangyodon || hangyodon.game_over) return;
+
+  const now = new Date();
+  hangyodon.sleeping = isSleepingAtInstant(hangyodon, now.getTime());
+  if (!hangyodon.sleeping) {
+    hangyodon.hunger = Math.max(0, hangyodon.hunger - 1);
+    hangyodon.mood = Math.max(-100, hangyodon.mood - 1);
+
+    if (hangyodon.hunger <= 20) {
+      const today = new Date().toDateString();
+      const lastNotified = hangyodon.lastHungerNotificationDate ? new Date(hangyodon.lastHungerNotificationDate).toDateString() : null;
+      if (lastNotified !== today) {
+        hangyodon.lastHungerNotificationDate = new Date().toISOString();
+        maybeShowLocalHungerNotification();
+      }
+    }
+  }
+
+  if (hangyodon.mood <= -100) {
+    triggerGameOver();
+    return;
+  }
+
+  ensureSleepSchedule(hangyodon, now);
+  saveGame();
+  updateUI();
+}, 60000);
+
+setInterval(showComment, 10000);
+
+if (supabaseClient) {
+  setStatusMessage('Supabase接続を準備しています…', 'info');
+} else {
+  setStatusMessage('SupabaseのPublishable keyを設定してください。', 'error');
+}
+
+hangyodon = getDefaultHangyodonState();
+loadGame();
+randomBlink();
+registerPushNotificationHandlers();
+if (isPushSupported()) {
+  registerServiceWorker();
+}
+
+if (supabaseClient) {
+  supabaseClient.channel('hangyodon_shared').on('postgres_changes', {
+    event: '*',
+    schema: 'public',
+    table: 'hangyodon',
+    filter: 'id=eq.1'
+  }, payload => {
+    const row = payload.new || payload.old;
+    if (!row) return;
+
+    const localCache = readLocalGameCache() || getDefaultHangyodonState();
+    const nextState = progressStateToRuntime({
+      ...localCache,
+      hunger: safeNumber(row.hunger, localCache.hunger),
+      mood: safeNumber(row.mood, localCache.mood),
+      level: safeNumber(row.level, localCache.level),
+      exp: safeNumber(row.exp, localCache.exp),
+      money: safeNumber(row.money, localCache.money),
+      sleep_start_at: row.sleep_start_at || localCache.sleep_start_at || null,
+      sleep_end_at: row.sleep_end_at || localCache.sleep_end_at || null,
+      sleep_schedule_date: row.sleep_schedule_date || localCache.sleep_schedule_date || null,
+      game_over: Boolean(row.game_over)
+    });
+
+    hangyodon = ensureSleepSchedule(nextState, new Date());
+    saveLocalGameCache();
+    updateUI();
+    setStatusMessage('他の端末の更新を反映しました。', 'success');
+  }).subscribe();
+}
+
+const startGameBtn = document.getElementById('start-game-btn');
+if (startGameBtn) {
+  startGameBtn.addEventListener('click', startNewGame);
+}
+
+updateUI();
+
+
+
+
+
