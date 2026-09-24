@@ -6,6 +6,8 @@ const SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_jmt7PPVYn_L7MNDBJ69otg_s6u_ulGy
 const PUSH_VAPID_PUBLIC_KEY = 'BOs7vrRNkcraSCGjHZTVe_ywnnRfb2Ko6x0r0y2K2gJxQcMt_DtfvhUn8S-oOYFjXUHxwQYxMVZXi9ueKdwkJM8';
 const PUSH_STORAGE_KEY = 'hangyodonPushEnabled';
 
+// defer 属性により、Supabase CDN の読み込み完了後に app.js が実行される
+// window.supabase は defer でスクリプトの読み込み順序が保証されるため、存在することが確定
 const supabaseClient = (window.supabase && SUPABASE_PUBLISHABLE_KEY && SUPABASE_PUBLISHABLE_KEY !== 'SUPABASE_PUBLISHABLE_KEY_HERE')
   ? window.supabase.createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY)
   : null;
