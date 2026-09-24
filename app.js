@@ -19,6 +19,7 @@ const hungerBar = document.getElementById('hunger-bar');
 const statusMessage = document.getElementById('status-message');
 
 let hangyodon = null;
+let hangyodonRealtimeChannel = null;
 let jobGameData = {
   isActive: false,
   earnedMoney: 0,
@@ -658,6 +659,7 @@ function loadGame() {
   }
 
   if (supabaseClient) {
+    subscribeHangyodonRealtime();
     syncFromSupabase();
   } else {
     updateUI();
@@ -1369,3 +1371,44 @@ if (adminSleepToggleBtn) {
 }
 
 setInterval(showComment, 10000);
+
+function subscribeHangyodonRealtime() {
+  if (!supabaseClient || hangyodonRealtimeChannel) return;
+
+  hangyodonRealtimeChannel = supabaseClient.channel('hangyodon_shared');
+
+  hangyodonRealtimeChannel.on('postgres_changes', {
+    event: '*',
+    schema: 'public',
+    table: 'hangyodon',
+    filter: 'id=eq.1'
+  }, (payload) => {
+    const row = payload.new ?? payload.old;
+    if (!row) return;
+
+    const baseState = hangyodon || readLocalGameCache() || getDefaultHangyodonState();
+    const nextState = progressStateToRuntime({
+      ...baseState,
+      hunger: safeNumber(row.hunger, baseState.hunger),
+      mood: safeNumber(row.mood, baseState.mood),
+      level: safeNumber(row.level, baseState.level),
+      exp: safeNumber(row.exp, baseState.exp),
+      money: safeNumber(row.money, baseState.money),
+      inventory: normalizeInventory(row.inventory || baseState.inventory || {}),
+      sleep_start_at: row.sleep_start_at || baseState.sleep_start_at || null,
+      sleep_end_at: row.sleep_end_at || baseState.sleep_end_at || null,
+      sleep_schedule_date: row.sleep_schedule_date || baseState.sleep_schedule_date || null,
+      game_over: Boolean(row.game_over),
+      sleeping: Boolean(row.sleeping ?? baseState.sleeping)
+    });
+
+    hangyodon = ensureSleepSchedule(nextState, new Date());
+    saveLocalGameCache();
+    updateUI();
+    setStatusMessage('他の端末の更新を反映しました。', 'success');
+  });
+
+  hangyodonRealtimeChannel.subscribe();
+}
+
+subscribeHangyodonRealtime();
