@@ -435,8 +435,15 @@ function applyElapsedMinutesToState(state, elapsedMinutes) {
     const target = startedAt + (minute * 60 * 1000);
     if (!isSleepingAtInstant(next, target)) {
       awakeMinutes += 1;
-      next.mood = Math.max(-100, next.mood - 1);
     }
+  }
+
+  const moodDecayBlocks = Math.floor(awakeMinutes / 5);
+  const hungerLowMoodDecayBlocks = next.hunger <= 20 ? moodDecayBlocks : 0;
+  const totalMoodLoss = Math.max(moodDecayBlocks, hungerLowMoodDecayBlocks);
+
+  if (totalMoodLoss > 0) {
+    next.mood = Math.max(-100, next.mood - totalMoodLoss);
   }
 
   const hungerLoss = Math.floor(awakeMinutes / 5);
