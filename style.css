@@ -1,10 +1,20 @@
+* {
+  box-sizing: border-box;
+}
+
+html {
+  font-size: clamp(12px, 2.5vw, 16px);
+}
+
 body {
   display: flex;
   justify-content: center;
-  align-items: center;
-  height: 100vh;
+  align-items: flex-start;
+  min-height: 100dvh;
   background: #d0f4ff;
   margin: 0;
+  padding: clamp(8px, 2vw, 16px);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
 }
 
 .game {
@@ -12,28 +22,38 @@ body {
   flex-direction: column;
   align-items: center;
   text-align: center;
+  width: 100%;
+  max-width: clamp(320px, 95vw, 600px);
+  height: auto;
+  flex: 1;
+  gap: clamp(8px, 2vw, 16px);
 }
 
 .character {
   position: relative;
+  flex-shrink: 0;
 }
 
 .character-img {
-  width: 300px;
+  width: clamp(200px, 60vw, 400px);
   height: auto;
+  max-width: 100%;
 }
 
 .status {
   text-align: center;
-  margin-top: 20px;
+  width: 100%;
+  margin-top: clamp(8px, 2vw, 16px);
+  padding: 0 clamp(8px, 2vw, 16px);
 }
 
 .gauge {
-  width: 200px;
-  height: 20px;
+  width: 100%;
+  max-width: clamp(200px, 60vw, 300px);
+  height: clamp(16px, 4vw, 28px);
   background: #ddd;
-  margin: 10px auto;
-  border-radius: 10px;
+  margin: clamp(6px, 1.5vw, 12px) auto;
+  border-radius: clamp(6px, 1.5vw, 10px);
   overflow: hidden;
 }
 
@@ -44,27 +64,30 @@ body {
   transition: width 0.3s;
 }
 
-#feed-btn, #walk-btn, #bath-btn {
-  padding: 8px 16px;
-  font-size: 14px;
+#feed-btn, #walk-btn, #bath-btn, #job-btn, #admin-btn {
+  padding: clamp(10px, 2.5vw, 16px) clamp(12px, 3vw, 20px);
+  font-size: clamp(14px, 3vw, 18px);
   background: #87ceeb;
-  border: 2px solid #4169e1;
-  border-radius: 8px;
+  border: clamp(1px, 0.5vw, 3px) solid #4169e1;
+  border-radius: clamp(6px, 1.5vw, 10px);
   cursor: pointer;
   transition: all 0.3s;
+  min-height: clamp(40px, 10vw, 56px);
+  flex: 1;
+  min-width: clamp(36px, 8vw, 48px);
 }
 #walk-btn {
   background: #98fb98;
   border-color: #228b22;
 }
-#walk-btn:hover {
+#walk-btn:hover, #walk-btn:active {
   background: #32cd32;
 }
 #bath-btn {
   background: #ffb6c1;
   border-color: #c71585;
 }
-#bath-btn:hover {
+#bath-btn:hover, #bath-btn:active {
   background: #ff69b4;
 }
 
@@ -72,17 +95,35 @@ body {
   background: #ffd700;
   border-color: #ff8c00;
 }
-#job-btn:hover {
+#job-btn:hover, #job-btn:active {
   background: #ffed4e;
 }
 
+#admin-btn {
+  background: #dda0dd;
+  border-color: #8b008b;
+  width: 100%;
+  flex: 1 1 100%;
+}
+#admin-btn:hover, #admin-btn:active {
+  background: #ee82ee;
+}
+
+#feed-btn:disabled, #walk-btn:disabled, #bath-btn:disabled, #job-btn:disabled, #admin-btn:disabled {
+  background: #ccc;
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
 .status-message {
-  margin: 10px auto;
-  padding: 8px 12px;
-  border-radius: 8px;
-  font-size: 12px;
-  min-height: 18px;
+  margin: clamp(6px, 1.5vw, 12px) auto;
+  padding: clamp(6px, 1.5vw, 12px) clamp(8px, 2vw, 16px);
+  border-radius: clamp(6px, 1.5vw, 10px);
+  font-size: clamp(12px, 2.5vw, 16px);
+  min-height: clamp(20px, 4vw, 28px);
   display: none;
+  width: 90%;
+  max-width: clamp(280px, 85vw, 400px);
 }
 
 .status-message.info {
@@ -107,55 +148,60 @@ body {
 }
 
 .feed-menu {
-  position: absolute;
+  position: fixed;
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
   background: #fff;
-  border: 2px solid #000;
-  padding: 20px;
-  border-radius: 10px;
+  border: clamp(1px, 0.5vw, 3px) solid #000;
+  padding: clamp(12px, 3vw, 24px);
+  border-radius: clamp(8px, 2vw, 12px);
   z-index: 20;
   text-align: center;
+  max-width: 90vw;
+  max-height: 80vh;
+  overflow-y: auto;
 }
 .feed-menu button {
-  margin: 5px;
-  padding: 6px 12px;
-  font-size: 14px;
+  margin: clamp(4px, 1vw, 8px);
+  padding: clamp(8px, 2vw, 12px) clamp(10px, 2.5vw, 16px);
+  font-size: clamp(13px, 2.5vw, 16px);
   cursor: pointer;
+  min-height: clamp(40px, 8vw, 48px);
+  border-radius: clamp(4px, 1vw, 6px);
 }
 .feed-menu #feed-options button {
   background: #ffe4b5;
-  border: 1px solid #d2691e;
+  border: clamp(1px, 0.25vw, 2px) solid #d2691e;
 }
-.feed-menu #feed-options button:hover {
+.feed-menu #feed-options button:hover, .feed-menu #feed-options button:active {
   background: #ffa500;
 }
 
-#feed-btn:disabled {
-  background: #ccc;
-  cursor: not-allowed;
-  opacity: 0.6;
-}
+
 
 .shop, .inventory {
-  margin-top: 10px;
+  margin-top: clamp(8px, 2vw, 16px);
   text-align: left;
+  width: 100%;
+  padding: 0 clamp(8px, 2vw, 16px);
 }
 .shop h3, .inventory h3 {
-  margin-bottom: 5px;
-  font-size: 16px;
+  margin: clamp(6px, 1.5vw, 12px) 0 clamp(4px, 1vw, 8px) 0;
+  font-size: clamp(14px, 3vw, 18px);
+  font-weight: bold;
 }
 .shop button {
-  margin-right: 5px;
-  padding: 4px 8px;
-  font-size: 13px;
+  margin: clamp(3px, 0.75vw, 6px) clamp(3px, 0.75vw, 6px) clamp(3px, 0.75vw, 6px) 0;
+  padding: clamp(6px, 1.5vw, 10px) clamp(8px, 2vw, 12px);
+  font-size: clamp(12px, 2.5vw, 14px);
   background: #90ee90;
-  border: 1px solid #4682b4;
-  border-radius: 4px;
+  border: clamp(1px, 0.25vw, 2px) solid #4682b4;
+  border-radius: clamp(4px, 1vw, 6px);
   cursor: pointer;
+  min-height: clamp(36px, 8vw, 44px);
 }
-.shop button:hover {
+.shop button:hover, .shop button:active {
   background: #32cd32;
 }
 
@@ -163,6 +209,7 @@ body {
   background: #ccc;
   border-color: #999;
   cursor: not-allowed;
+  opacity: 0.6;
 }
 .inventory ul {
   list-style: none;
@@ -170,7 +217,8 @@ body {
   margin: 0;
 }
 .inventory li {
-  font-size: 14px;
+  font-size: clamp(12px, 2.5vw, 16px);
+  padding: clamp(4px, 1vw, 8px) 0;
 }
 
 .job-minigame {
@@ -188,23 +236,26 @@ body {
 
 .minigame-content {
   background: #fff;
-  border: 3px solid #ff6347;
-  padding: 30px;
-  border-radius: 15px;
+  border: clamp(2px, 0.5vw, 4px) solid #ff6347;
+  padding: clamp(16px, 4vw, 32px);
+  border-radius: clamp(10px, 2.5vw, 20px);
   text-align: center;
-  font-size: 16px;
+  font-size: clamp(14px, 3vw, 18px);
+  max-width: 90vw;
 }
 
 .job-work-btn {
-  padding: 15px 30px;
-  font-size: 18px;
+  padding: clamp(12px, 3vw, 20px) clamp(16px, 4vw, 32px);
+  font-size: clamp(16px, 4vw, 20px);
   background: #ffd700;
-  border: 3px solid #ff8c00;
-  border-radius: 10px;
+  border: clamp(2px, 0.5vw, 4px) solid #ff8c00;
+  border-radius: clamp(8px, 2vw, 12px);
   cursor: pointer;
   font-weight: bold;
-  margin-top: 20px;
+  margin-top: clamp(12px, 3vw, 20px);
   transition: all 0.1s;
+  min-height: clamp(44px, 10vw, 56px);
+  min-width: clamp(100px, 30vw, 200px);
 }
 
 .job-work-btn:active {
@@ -212,30 +263,32 @@ body {
 }
 
 .status p {
-  margin: 5px 0;
+  margin: clamp(3px, 0.75vw, 8px) 0;
+  font-size: clamp(13px, 2.75vw, 18px);
+  line-height: 1.4;
 }
 
 .comment-bubble {
   position: absolute;
-  top: -60px;
+  top: clamp(-50px, -8vw, -40px);
   left: 50%;
   transform: translateX(-50%);
   background: #fff;
-  border: 1px solid #000;
-  border-radius: 10px;
-  padding: 8px 12px;
-  max-width: 200px;
-  font-size: 14px;
+  border: clamp(1px, 0.25vw, 2px) solid #000;
+  border-radius: clamp(6px, 1.5vw, 10px);
+  padding: clamp(6px, 1.5vw, 12px);
+  max-width: clamp(150px, 70vw, 250px);
+  font-size: clamp(12px, 2.5vw, 15px);
   display: none;
   z-index: 10;
 }
 .comment-bubble::after {
   content: "";
   position: absolute;
-  bottom: -10px;
+  bottom: clamp(-8px, -1.5vw, -6px);
   left: 50%;
   transform: translateX(-50%);
-  border-width: 10px 10px 0;
+  border-width: clamp(6px, 1.5vw, 10px) clamp(6px, 1.5vw, 10px) 0;
   border-style: solid;
   border-color: #fff transparent transparent transparent;
 }
@@ -255,29 +308,31 @@ body {
 
 .walk-popup-content {
   background: #fff;
-  border: 3px solid #32cd32;
-  padding: 30px;
-  border-radius: 10px;
+  border: clamp(2px, 0.5vw, 3px) solid #32cd32;
+  padding: clamp(16px, 4vw, 30px);
+  border-radius: clamp(8px, 2vw, 10px);
   text-align: center;
-  font-size: 16px;
-  max-width: 300px;
+  font-size: clamp(14px, 3vw, 16px);
+  max-width: clamp(240px, 85vw, 300px);
 }
 
 .walk-popup-content p {
-  margin: 0 0 20px 0;
-  font-size: 18px;
+  margin: 0 0 clamp(12px, 3vw, 20px) 0;
+  font-size: clamp(15px, 3.5vw, 18px);
   font-weight: bold;
 }
 
 #walk-popup-ok {
-  padding: 10px 30px;
-  font-size: 16px;
+  padding: clamp(8px, 2vw, 10px) clamp(16px, 4vw, 30px);
+  font-size: clamp(14px, 3vw, 16px);
   background: #32cd32;
   color: #fff;
-  border: 2px solid #228b22;
-  border-radius: 8px;
+  border: clamp(1px, 0.25vw, 2px) solid #228b22;
+  border-radius: clamp(6px, 1.5vw, 8px);
   cursor: pointer;
   font-weight: bold;
+  min-height: clamp(40px, 8vw, 48px);
+  min-width: clamp(80px, 20vw, 120px);
 }
 
 .bath-popup {
@@ -295,60 +350,63 @@ body {
 
 .bath-popup-content {
   background: #fff;
-  border: 3px solid #ffb6c1;
-  padding: 30px;
-  border-radius: 10px;
+  border: clamp(2px, 0.5vw, 3px) solid #ffb6c1;
+  padding: clamp(16px, 4vw, 30px);
+  border-radius: clamp(8px, 2vw, 10px);
   text-align: center;
-  font-size: 16px;
-  max-width: 300px;
+  font-size: clamp(14px, 3vw, 16px);
+  max-width: clamp(240px, 85vw, 300px);
 }
 
 .bath-popup-content p {
-  margin: 0 0 20px 0;
-  font-size: 18px;
+  margin: 0 0 clamp(12px, 3vw, 20px) 0;
+  font-size: clamp(15px, 3.5vw, 18px);
   font-weight: bold;
 }
 
 #bath-popup-ok {
-  padding: 10px 30px;
-  font-size: 16px;
+  padding: clamp(8px, 2vw, 10px) clamp(16px, 4vw, 30px);
+  font-size: clamp(14px, 3vw, 16px);
   background: #ffb6c1;
   color: #fff;
-  border: 2px solid #c71585;
-  border-radius: 8px;
+  border: clamp(1px, 0.25vw, 2px) solid #c71585;
+  border-radius: clamp(6px, 1.5vw, 8px);
   cursor: pointer;
   font-weight: bold;
+  min-height: clamp(40px, 8vw, 48px);
+  min-width: clamp(80px, 20vw, 120px);
 }
 
 .job-finish-btn {
   position: fixed;
-  top: 12px;
-  right: 12px;
+  top: clamp(8px, 2vw, 12px);
+  right: clamp(8px, 2vw, 12px);
   z-index: 1000;
-  padding: 8px 12px;
-  font-size: 14px;
+  padding: clamp(6px, 1.5vw, 8px) clamp(8px, 2vw, 12px);
+  font-size: clamp(12px, 2.5vw, 14px);
   background: #32cd32;
   color: #fff;
-  border: 2px solid #228b22;
-  border-radius: 8px;
+  border: clamp(1px, 0.25vw, 2px) solid #228b22;
+  border-radius: clamp(6px, 1.5vw, 8px);
   cursor: pointer;
+  min-height: clamp(36px, 8vw, 44px);
 }
 .job-finish-btn:hover {
   background: #2eb82e;
 }
 
 .push-notification-panel {
-  margin: 14px auto 8px;
-  padding: 12px 14px;
+  margin: clamp(10px, 2vw, 14px) auto clamp(6px, 1.5vw, 8px);
+  padding: clamp(10px, 2vw, 12px) clamp(12px, 2.5vw, 14px);
   background: rgba(255, 255, 255, 0.72);
-  border: 2px solid #8ec5ff;
-  border-radius: 12px;
+  border: clamp(1px, 0.25vw, 2px) solid #8ec5ff;
+  border-radius: clamp(10px, 2.5vw, 12px);
   text-align: center;
-  max-width: 320px;
+  max-width: clamp(240px, 90vw, 320px);
 }
 
 .push-btn {
-  padding: 10px 16px;
+  padding: clamp(8px, 2vw, 10px) clamp(12px, 3vw, 16px);
   border: none;
   border-radius: 999px;
   background: linear-gradient(135deg, #ffcc80, #ff9d4d);
@@ -356,6 +414,8 @@ body {
   font-weight: 700;
   cursor: pointer;
   box-shadow: 0 4px 12px rgba(255, 157, 77, 0.25);
+  font-size: clamp(13px, 2.5vw, 15px);
+  min-height: clamp(40px, 8vw, 48px);
 }
 
 .push-btn-secondary {
@@ -364,8 +424,8 @@ body {
 
 .push-help-text,
 .ios-install-hint {
-  margin: 8px 0 0;
-  font-size: 12px;
+  margin: clamp(6px, 1.5vw, 8px) 0 0;
+  font-size: clamp(11px, 2vw, 12px);
   color: #334155;
   line-height: 1.5;
 }
@@ -390,46 +450,50 @@ body {
 
 .start-card {
   background: #fff;
-  border: 4px solid #ff9d4d;
-  border-radius: 18px;
-  padding: 32px 28px;
-  max-width: 420px;
+  border: clamp(2px, 0.5vw, 4px) solid #ff9d4d;
+  border-radius: clamp(14px, 3vw, 18px);
+  padding: clamp(20px, 4vw, 32px) clamp(16px, 3.5vw, 28px);
+  max-width: clamp(280px, 90vw, 420px);
   text-align: center;
   box-shadow: 0 12px 28px rgba(0, 0, 0, 0.15);
 }
 
 .start-card h2 {
   margin-top: 0;
-  font-size: 22px;
+  font-size: clamp(18px, 4vw, 22px);
   color: #1f2937;
 }
 
 .start-card p {
-  margin: 16px 0 20px;
-  font-size: 18px;
+  margin: clamp(12px, 2.5vw, 16px) 0 clamp(14px, 3vw, 20px);
+  font-size: clamp(15px, 3.5vw, 18px);
   color: #374151;
+  line-height: 1.5;
 }
 
 #start-game-btn {
-  padding: 12px 28px;
+  padding: clamp(10px, 2.5vw, 12px) clamp(18px, 4vw, 28px);
   border: none;
   border-radius: 999px;
-  font-size: 18px;
+  font-size: clamp(15px, 3.5vw, 18px);
   font-weight: 700;
   background: linear-gradient(135deg, #7dd3fc, #38bdf8);
   color: #0f172a;
   cursor: pointer;
+  min-height: clamp(40px, 8vw, 48px);
+  min-width: clamp(100px, 25vw, 150px);
 }
 
 .admin-btn {
-  padding: 8px 16px;
-  font-size: 14px;
+  padding: clamp(6px, 1.5vw, 8px) clamp(10px, 2.5vw, 16px);
+  font-size: clamp(12px, 2.5vw, 14px);
   background: #1f2937;
   color: #fff;
-  border: 2px solid #0f172a;
-  border-radius: 8px;
+  border: clamp(1px, 0.25vw, 2px) solid #0f172a;
+  border-radius: clamp(6px, 1.5vw, 8px);
   cursor: pointer;
   transition: all 0.2s;
+  min-height: clamp(36px, 8vw, 44px);
 }
 
 .admin-btn:hover {
@@ -450,58 +514,61 @@ body {
 .admin-modal-card,
 .admin-menu {
   background: #fff;
-  border-radius: 16px;
-  border: 3px solid #0f172a;
+  border-radius: clamp(12px, 3vw, 16px);
+  border: clamp(2px, 0.5vw, 3px) solid #0f172a;
   box-shadow: 0 12px 30px rgba(15, 23, 42, 0.25);
   width: min(90vw, 360px);
-  padding: 24px 18px;
+  padding: clamp(16px, 3vw, 24px) clamp(14px, 2.5vw, 18px);
   text-align: center;
 }
 
 .admin-modal-card h3,
 .admin-menu h3 {
-  margin: 0 0 18px;
-  font-size: 22px;
+  margin: 0 0 clamp(12px, 2.5vw, 18px);
+  font-size: clamp(18px, 4vw, 22px);
 }
 
 .admin-label {
   display: block;
   text-align: left;
-  margin-bottom: 8px;
-  font-size: 14px;
+  margin-bottom: clamp(6px, 1.5vw, 8px);
+  font-size: clamp(12px, 2.5vw, 14px);
   font-weight: 600;
 }
 
 #admin-password-input {
   width: 100%;
   box-sizing: border-box;
-  padding: 10px 12px;
-  font-size: 16px;
-  border: 2px solid #cbd5e1;
-  border-radius: 8px;
-  margin-bottom: 16px;
+  padding: clamp(8px, 2vw, 10px) clamp(10px, 2.5vw, 12px);
+  font-size: clamp(14px, 3vw, 16px);
+  border: clamp(1px, 0.25vw, 2px) solid #cbd5e1;
+  border-radius: clamp(6px, 1.5vw, 8px);
+  margin-bottom: clamp(12px, 2.5vw, 16px);
+  min-height: clamp(40px, 8vw, 48px);
 }
 
 .admin-actions,
 .admin-menu {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: clamp(8px, 2vw, 10px);
 }
 
 .admin-actions {
   flex-direction: row;
   justify-content: center;
+  flex-wrap: wrap;
 }
 
 .admin-modal-card button,
 .admin-menu button {
-  padding: 12px 16px;
-  border-radius: 10px;
+  padding: clamp(10px, 2.5vw, 12px) clamp(12px, 2.5vw, 16px);
+  border-radius: clamp(8px, 2vw, 10px);
   border: none;
-  font-size: 15px;
+  font-size: clamp(13px, 2.5vw, 15px);
   font-weight: 700;
   cursor: pointer;
+  min-height: clamp(40px, 8vw, 48px);
 }
 
 #admin-login-btn,

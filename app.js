@@ -216,6 +216,202 @@ function readLocalGameCache() {
   }
 }
 
+function isPushSupported() {
+  return 'Notification' in window && 'serviceWorker' in navigator && 'PushManager' in window;
+}
+
+function urlBase64ToUint8Array(base64String) {
+  if (!base64String || base64String.includes('PASTE_') || base64String.includes('YOUR_')) {
+    return new Uint8Array();
+  }
+
+  const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
+  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+  const binary = atob(base64);
+  const output = new Uint8Array(binary.length);
+
+  for (let i = 0; i < binary.length; i += 1) {
+    output[i] = binary.charCodeAt(i);
+  }
+
+  return output;
+}
+
+function arrayBufferToBase64(buffer) {
+  let binary = '';
+  const bytes = new Uint8Array(buffer);
+  for (let i = 0; i < bytes.byteLength; i += 1) {
+    binary += String.fromCharCode(bytes[i]);
+  }
+  return btoa(binary);
+}
+
+function updatePushButtons(isEnabled) {
+  const enableBtn = document.getElementById('enable-push-btn');
+  const disableBtn = document.getElementById('disable-push-btn');
+  const helpText = document.getElementById('push-help-text');
+
+  if (enableBtn) enableBtn.style.display = isEnabled ? 'none' : 'block';
+  if (disableBtn) disableBtn.style.display = isEnabled ? 'block' : 'none';
+  if (helpText) {
+    helpText.textContent = isEnabled ? 'この端末では通知を受け取る設定です。' : 'スマートフォンに空腹時の通知を受け取れます。';
+  }
+
+  localStorage.setItem(PUSH_STORAGE_KEY, isEnabled ? '1' : '0');
+}
+
+async function registerServiceWorker() {
+  if (!('serviceWorker' in navigator)) return false;
+
+  try {
+    const registration = await navigator.serviceWorker.register('./sw.js', { scope: './' });
+    return !!registration;
+  } catch (error) {
+    console.error('Service Worker registration error:', error);
+    return false;
+  }
+}
+
+async function savePushSubscriptionToSupabase(subscription) {
+  if (!supabaseClient) {
+    setStatusMessage('Supabaseの接続が無いため、通知購読を保存できません。', 'error');
+    return false;
+  }
+
+  if (!subscription || !subscription.endpoint) return false;
+
+  const keyP256dh = subscription.getKey ? subscription.getKey('p256dh') : null;
+  const keyAuth = subscription.getKey ? subscription.getKey('auth') : null;
+
+  const payload = {
+    pet_id: 1,
+    endpoint: subscription.endpoint,
+    p256dh: keyP256dh ? arrayBufferToBase64(keyP256dh) : null,
+    auth: keyAuth ? arrayBufferToBase64(keyAuth) : null,
+    is_active: true,
+    platform: /Android/i.test(navigator.userAgent) ? 'android' : /iPhone|iPad|iPod/i.test(navigator.userAgent) ? 'ios' : 'browser',
+    device_label: navigator.userAgent,
+    updated_at: new Date().toISOString()
+  };
+
+  const { error } = await supabaseClient.from('push_subscriptions').upsert(payload, { onConflict: 'endpoint' });
+  if (error) {
+    console.error('Push subscription save error:', error);
+    setStatusMessage('通知購読の保存に失敗しました。', 'error');
+    return false;
+  }
+
+  return true;
+}
+
+async function removePushSubscriptionFromSupabase(endpoint) {
+  if (!supabaseClient || !endpoint) return;
+
+  await supabaseClient.from('push_subscriptions').update({ is_active: false, updated_at: new Date().toISOString() }).eq('endpoint', endpoint);
+}
+
+async function enablePushNotifications() {
+  if (!isPushSupported()) {
+    setStatusMessage('この端末ではWeb Pushが使えません。iPhoneではホーム画面に追加してから試してください。', 'error');
+    return;
+  }
+
+  if (!('Notification' in window)) {
+    setStatusMessage('ブラウザが通知APIをサポートしていません。', 'error');
+    return;
+  }
+
+  if (Notification.permission === 'default') {
+    const permission = await Notification.requestPermission();
+    if (permission !== 'granted') {
+      setStatusMessage('通知の許可が必要です。設定から通知をオンにしてください。', 'error');
+      return;
+    }
+  }
+
+  if (Notification.permission !== 'granted') {
+    setStatusMessage('通知が拒否されています。設定からONにしてください。', 'error');
+    return;
+  }
+
+  if (!PUSH_VAPID_PUBLIC_KEY || PUSH_VAPID_PUBLIC_KEY.includes('PASTE_') || PUSH_VAPID_PUBLIC_KEY.includes('YOUR_')) {
+    setStatusMessage('VAPID公開鍵が未設定です。Supabase Secret と app.js の公開鍵を設定してください。', 'error');
+    return;
+  }
+
+  await registerServiceWorker();
+
+  const registration = await navigator.serviceWorker.ready;
+  let subscription = await registration.pushManager.getSubscription();
+
+  if (!subscription) {
+    subscription = await registration.pushManager.subscribe({
+      userVisibleOnly: true,
+      applicationServerKey: urlBase64ToUint8Array(PUSH_VAPID_PUBLIC_KEY)
+    });
+  }
+
+  const saved = await savePushSubscriptionToSupabase(subscription);
+  if (saved) {
+    updatePushButtons(true);
+    setStatusMessage('この端末で通知をONにしました。', 'success');
+  }
+}
+
+async function disablePushNotifications() {
+  if (!('serviceWorker' in navigator)) return;
+
+  try {
+    const registration = await navigator.serviceWorker.ready;
+    const subscription = await registration.pushManager.getSubscription();
+
+    if (subscription) {
+      await subscription.unsubscribe();
+      await removePushSubscriptionFromSupabase(subscription.endpoint);
+    }
+
+    updatePushButtons(false);
+    setStatusMessage('通知をOFFにしました。', 'info');
+  } catch (error) {
+    console.error('Push unsubscribe error:', error);
+    setStatusMessage('通知の停止に失敗しました。', 'error');
+  }
+}
+
+function registerPushNotificationHandlers() {
+  const enableBtn = document.getElementById('enable-push-btn');
+  const disableBtn = document.getElementById('disable-push-btn');
+
+  if (enableBtn) {
+    enableBtn.addEventListener('click', enablePushNotifications);
+  }
+
+  if (disableBtn) {
+    disableBtn.addEventListener('click', disablePushNotifications);
+  }
+
+  const isEnabled = ('Notification' in window && Notification.permission === 'granted') || localStorage.getItem(PUSH_STORAGE_KEY) === '1';
+  updatePushButtons(isEnabled);
+}
+
+function maybeShowLocalHungerNotification() {
+  if (!('Notification' in window) || Notification.permission !== 'granted') return;
+  if (hangyodon.hunger > 20) return;
+  if (isHangyodonSleepingNow()) return;
+
+  const today = new Date().toDateString();
+  const lastNotified = hangyodon.lastHungerNotificationDate ? new Date(hangyodon.lastHungerNotificationDate).toDateString() : null;
+
+  if (lastNotified === today) return;
+
+  hangyodon.lastHungerNotificationDate = new Date().toISOString();
+  new Notification('🍙 ハンギョドンがお腹すいてるよ！', {
+    body: 'ご飯をあげてね。',
+    icon: 'hangyo_open.png',
+    tag: 'hangyodon-hunger-low'
+  });
+}
+
 function getSleepingStateForHour(hour, sleepStartHour, wakeUpHour) {
   const start = sleepStartHour >= 24 ? sleepStartHour - 24 : sleepStartHour;
   const wake = wakeUpHour >= 24 ? wakeUpHour - 24 : wakeUpHour;
@@ -814,7 +1010,83 @@ function sendAdminTestNotification() {
     setStatusMessage('この端末では通知を送れません。', 'error');
   }
 
-  doLocalSend();
+  async function doPushSend() {
+    try {
+      if (!supabaseClient) {
+        await doLocalSend();
+        return;
+      }
+
+      if (!isPushSupported()) {
+        await doLocalSend();
+        return;
+      }
+
+      if (!('Notification' in window)) {
+        await doLocalSend();
+        return;
+      }
+
+      if (Notification.permission === 'default') {
+        const permission = await Notification.requestPermission();
+        if (permission !== 'granted') {
+          setStatusMessage('通知の許可が必要です。', 'error');
+          return;
+        }
+      }
+
+      if (Notification.permission !== 'granted') {
+        setStatusMessage('通知が拒否されています。設定からONにしてください。', 'error');
+        return;
+      }
+
+      await registerServiceWorker();
+      const registration = await navigator.serviceWorker.ready;
+      let subscription = await registration.pushManager.getSubscription();
+
+      if (!subscription) {
+        subscription = await registration.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: urlBase64ToUint8Array(PUSH_VAPID_PUBLIC_KEY)
+        });
+      }
+
+      const saved = await savePushSubscriptionToSupabase(subscription);
+      if (!saved) {
+        await doLocalSend();
+        return;
+      }
+
+      const { data, error } = await supabaseClient.functions.invoke('send-hangyodon-push', {
+        body: {
+          pet_id: 1,
+          type: 'admin_test',
+          title,
+          body,
+          icon: 'hangyo_open.png',
+          tag: 'hangyodon-admin-test'
+        }
+      });
+
+      if (error) {
+        console.error('Admin push invoke failed:', error);
+        setStatusMessage('通知送信に失敗しました。', 'error');
+        return;
+      }
+
+      if (data && data.ok === false) {
+        setStatusMessage('通知送信に失敗しました。', 'error');
+        return;
+      }
+
+      setStatusMessage('テスト通知を送信しました。', 'success');
+    } catch (error) {
+      console.error('Admin test notification failed:', error);
+      await doLocalSend();
+    }
+  }
+
+  doPushSend();
 }
 
 function resetAll() {
@@ -1042,6 +1314,10 @@ if (startGameBtn) {
 }
 
 updateUI();
+registerPushNotificationHandlers();
+if (isPushSupported()) {
+  registerServiceWorker();
+}
 
 const adminBtn = document.getElementById('admin-btn');
 if (adminBtn) {
