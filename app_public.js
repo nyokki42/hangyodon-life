@@ -97,6 +97,7 @@ function getDefaultHangyodonState() {
     sleepStartHour: getRandomHour(22, 23),
     wakeUpHour: getRandomHour(6, 8),
     meetingDate: new Date().toISOString(),
+    started_at: new Date().toISOString(),
     lastBathDate: null,
     lastHungerNotificationDate: null,
     lastJobTime: 0
@@ -115,7 +116,8 @@ function progressStateToRuntime(state) {
     level: Math.max(1, Number(state?.level ?? defaults.level)),
     exp: Math.max(0, Number(state?.exp ?? defaults.exp)),
     money: Math.max(0, Number(state?.money ?? defaults.money)),
-    meetingDate: state?.meetingDate || defaults.meetingDate,
+    meetingDate: state?.started_at || state?.meetingDate || defaults.meetingDate,
+    started_at: state?.started_at || state?.meetingDate || defaults.meetingDate,
     sleep_start_at: state?.sleep_start_at || null,
     sleep_end_at: state?.sleep_end_at || null,
     sleep_schedule_date: state?.sleep_schedule_date || null,
@@ -213,13 +215,26 @@ function applyElapsedMinutesToState(state, elapsedMinutes) {
   if (elapsedMinutes <= 0) return next;
 
   const startedAt = Date.now() - (elapsedMinutes * 60 * 1000);
+  let awakeMinutes = 0;
 
   for (let minute = 0; minute < elapsedMinutes; minute += 1) {
     const target = startedAt + (minute * 60 * 1000);
     if (!isSleepingAtInstant(next, target)) {
-      next.hunger = Math.max(0, next.hunger - 1);
-      next.mood = Math.max(-100, next.mood - 1);
+      awakeMinutes += 1;
     }
+  }
+
+  const moodDecayBlocks = Math.floor(awakeMinutes / 5);
+  const hungerLowMoodDecayBlocks = next.hunger <= 20 ? moodDecayBlocks : 0;
+  const totalMoodLoss = Math.max(moodDecayBlocks, hungerLowMoodDecayBlocks);
+
+  if (totalMoodLoss > 0) {
+    next.mood = Math.max(-100, next.mood - totalMoodLoss);
+  }
+
+  const hungerLoss = Math.floor(awakeMinutes / 5);
+  if (hungerLoss > 0) {
+    next.hunger = Math.max(0, next.hunger - hungerLoss);
   }
 
   if (next.hunger <= 0) {
@@ -341,6 +356,7 @@ async function syncToSupabase() {
       exp: Math.max(0, Number(hangyodon.exp) || 0),
       money: Math.max(0, Number(hangyodon.money) || 0),
       inventory: normalizeInventory(hangyodon.inventory),
+      started_at: hangyodon.started_at || hangyodon.meetingDate || null,
       sleep_start_at: hangyodon.sleep_start_at || null,
       sleep_end_at: hangyodon.sleep_end_at || null,
       sleep_schedule_date: hangyodon.sleep_schedule_date || null,
@@ -781,32 +797,17 @@ function maybeShowLocalHungerNotification() {
   });
 }
 
+// Periodic sync: avoid local-only per-minute decay. Use Supabase as single source of truth.
 setInterval(() => {
-  if (!hangyodon || hangyodon.game_over) return;
-
-  const now = new Date();
-  hangyodon.sleeping = isSleepingAtInstant(hangyodon, now.getTime());
-  if (!hangyodon.sleeping) {
-    hangyodon.hunger = Math.max(0, hangyodon.hunger - 1);
-    hangyodon.mood = Math.max(-100, hangyodon.mood - 1);
-
-    if (hangyodon.hunger <= 20) {
-      const today = new Date().toDateString();
-      const lastNotified = hangyodon.lastHungerNotificationDate ? new Date(hangyodon.lastHungerNotificationDate).toDateString() : null;
-      if (lastNotified !== today) {
-        hangyodon.lastHungerNotificationDate = new Date().toISOString();
-        maybeShowLocalHungerNotification();
-      }
-    }
-  }
-
-  if (hangyodon.mood <= -100) {
-    triggerGameOver();
+  if (supabaseClient) {
+    syncFromSupabase();
     return;
   }
 
-  ensureSleepSchedule(hangyodon, now);
-  saveGame();
+  // When offline/no supabase, update UI and ensure sleep schedule only.
+  if (!hangyodon) return;
+  const now = new Date();
+  hangyodon = ensureSleepSchedule(progressStateToRuntime(hangyodon), now);
   updateUI();
 }, 60000);
 
@@ -833,27 +834,13 @@ if (supabaseClient) {
     table: 'hangyodon',
     filter: 'id=eq.1'
   }, payload => {
-    const row = payload.new || payload.old;
-    if (!row) return;
-
-    const localCache = readLocalGameCache() || getDefaultHangyodonState();
-    const nextState = progressStateToRuntime({
-      ...localCache,
-      hunger: safeNumber(row.hunger, localCache.hunger),
-      mood: safeNumber(row.mood, localCache.mood),
-      level: safeNumber(row.level, localCache.level),
-      exp: safeNumber(row.exp, localCache.exp),
-      money: safeNumber(row.money, localCache.money),
-      sleep_start_at: row.sleep_start_at || localCache.sleep_start_at || null,
-      sleep_end_at: row.sleep_end_at || localCache.sleep_end_at || null,
-      sleep_schedule_date: row.sleep_schedule_date || localCache.sleep_schedule_date || null,
-      game_over: Boolean(row.game_over)
-    });
-
-    hangyodon = ensureSleepSchedule(nextState, new Date());
-    saveLocalGameCache();
-    updateUI();
-    setStatusMessage('他の端末の更新を反映しました。', 'success');
+    // Supabase の変更を受けたらサーバーを信頼して再同期する
+    // これにより古い端末側の状態で上書きされることを防ぎます
+    try {
+      syncFromSupabase();
+    } catch (e) {
+      console.error('Realtime sync error:', e);
+    }
   }).subscribe();
 }
 
