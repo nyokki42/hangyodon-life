@@ -5,6 +5,7 @@ const SUPABASE_URL = 'https://otyfyfucfqbdboltelsw.supabase.co';
 const SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_jmt7PPVYn_L7MNDBJ69otg_s6u_ulGy';
 const PUSH_VAPID_PUBLIC_KEY = 'BOs7vrRNkcraSCGjHZTVe_ywnnRfb2Ko6x0r0y2K2gJxQcMt_DtfvhUn8S-oOYFjXUHxwQYxMVZXi9ueKdwkJM8';
 const PUSH_STORAGE_KEY = 'hangyodonPushEnabled';
+const ADMIN_PASSWORD = '1234';
 
 // defer 属性により、Supabase CDN の読み込み完了後に app.js が実行される
 // window.supabase は defer でスクリプトの読み込み順序が保証されるため、存在することが確定
@@ -90,6 +91,7 @@ function getDefaultHangyodonState() {
     money: 1000,
     inventory: {},
     sleeping: false,
+    sleepModeEnabled: true,
     sleep_start_at: null,
     sleep_end_at: null,
     sleep_schedule_date: null,
@@ -105,9 +107,13 @@ function getDefaultHangyodonState() {
 
 function progressStateToRuntime(state) {
   const defaults = getDefaultHangyodonState();
-  return {
+  const derivedSleepModeEnabled = state?.sleepModeEnabled !== undefined
+    ? Boolean(state.sleepModeEnabled)
+    : state?.sleep_schedule_date !== 'OFF';
+  const next = {
     ...defaults,
     ...state,
+    sleepModeEnabled: derivedSleepModeEnabled,
     inventory: normalizeInventory(state?.inventory || {}),
     sleeping: Boolean(state?.sleeping),
     hunger: clamp(Number(state?.hunger ?? defaults.hunger), 0, 100),
@@ -126,6 +132,13 @@ function progressStateToRuntime(state) {
     lastHungerNotificationDate: state?.lastHungerNotificationDate || null,
     lastJobTime: safeNumber(state?.lastJobTime, 0)
   };
+
+  if (next.sleep_schedule_date === 'OFF') {
+    next.sleepModeEnabled = false;
+    next.sleeping = false;
+  }
+
+  return next;
 }
 
 function createSleepScheduleForDate(date = new Date()) {
@@ -146,7 +159,11 @@ function createSleepScheduleForDate(date = new Date()) {
 }
 
 function ensureSleepSchedule(state, now = new Date()) {
-  const next = { ...state };
+  const next = applySleepModeState({ ...state });
+  if (!next.sleepModeEnabled) {
+    return next;
+  }
+
   const currentStart = next.sleep_start_at ? new Date(next.sleep_start_at) : null;
   const currentEnd = next.sleep_end_at ? new Date(next.sleep_end_at) : null;
   const dateKey = toLocalDateKey(now);
@@ -159,10 +176,12 @@ function ensureSleepSchedule(state, now = new Date()) {
     next.sleep_schedule_date = generated.sleep_schedule_date;
   }
 
+  next.sleeping = isSleepingAtInstant(next, Date.now());
   return next;
 }
 
 function isSleepingAtInstant(state, instant = Date.now()) {
+  if (!state || !isSleepModeEnabled(state)) return false;
   if (!state?.sleep_start_at || !state?.sleep_end_at) return false;
   const startMs = new Date(state.sleep_start_at).getTime();
   const endMs = new Date(state.sleep_end_at).getTime();
@@ -664,16 +683,149 @@ function finishJob() {
   finishAction(`${jobGameData.earnedMoney}円を稼ぎました！`);
 }
 
+function isSleepModeEnabled(state = hangyodon) {
+  if (!state) return true;
+  if (state.sleepModeEnabled === false || state.sleep_schedule_date === 'OFF') return false;
+  return true;
+}
+
+function applySleepModeState(nextState) {
+  const next = { ...nextState };
+  next.sleepModeEnabled = isSleepModeEnabled(next);
+  if (!next.sleepModeEnabled) {
+    next.sleeping = false;
+    next.sleep_schedule_date = 'OFF';
+  }
+  return next;
+}
+
+function setSleepModeEnabled(enabled) {
+  if (!hangyodon) return;
+
+  hangyodon.sleepModeEnabled = Boolean(enabled);
+
+  if (enabled) {
+    hangyodon.sleep_schedule_date = hangyodon.sleep_schedule_date === 'OFF' ? toLocalDateKey(new Date()) : hangyodon.sleep_schedule_date;
+    if (!hangyodon.sleep_start_at || !hangyodon.sleep_end_at) {
+      const generated = createSleepScheduleForDate(new Date());
+      hangyodon.sleep_start_at = generated.sleep_start_at;
+      hangyodon.sleep_end_at = generated.sleep_end_at;
+      hangyodon.sleep_schedule_date = generated.sleep_schedule_date;
+    }
+    hangyodon.sleeping = isSleepingAtInstant(hangyodon, Date.now());
+    setStatusMessage('睡眠モードを ON にしました。', 'success');
+  } else {
+    hangyodon.sleeping = false;
+    hangyodon.sleep_schedule_date = 'OFF';
+    setStatusMessage('睡眠モードを OFF にしました。通常時の時間経過に戻ります。', 'info');
+  }
+
+  saveGame();
+  updateUI();
+}
+
+function openAdminPasswordModal() {
+  const modal = document.getElementById('admin-password-modal');
+  const input = document.getElementById('admin-password-input');
+  if (modal) modal.style.display = 'flex';
+  if (input) {
+    input.value = '';
+    setTimeout(() => input.focus(), 50);
+  }
+}
+
+function closeAdminPasswordModal() {
+  const modal = document.getElementById('admin-password-modal');
+  if (modal) modal.style.display = 'none';
+  const input = document.getElementById('admin-password-input');
+  if (input) input.value = '';
+}
+
+function openAdminMenu() {
+  const modal = document.getElementById('admin-password-modal');
+  const menu = document.getElementById('admin-menu');
+  if (modal) modal.style.display = 'none';
+  if (menu) menu.style.display = 'flex';
+  const toggleBtn = document.getElementById('admin-sleep-toggle-btn');
+  if (toggleBtn) {
+    toggleBtn.textContent = isSleepModeEnabled(hangyodon) ? '睡眠モード：ON' : '睡眠モード：OFF';
+  }
+}
+
+function closeAdminMenu() {
+  const menu = document.getElementById('admin-menu');
+  if (menu) menu.style.display = 'none';
+  closeAdminPasswordModal();
+}
+
+function handleAdminLogin() {
+  const input = document.getElementById('admin-password-input');
+  if (!input) return;
+
+  if (input.value === ADMIN_PASSWORD) {
+    openAdminMenu();
+    return;
+  }
+
+  setStatusMessage('パスワードが違います。', 'error');
+  input.value = '';
+}
+
+function sendAdminTestNotification() {
+  const title = 'ハンギョドン∞ライフ';
+  const body = 'ハンギョドンからのお知らせです！';
+
+  async function doLocalSend() {
+    try {
+      if ('serviceWorker' in navigator && navigator.serviceWorker.ready) {
+        const registration = await navigator.serviceWorker.ready;
+        if (registration && registration.showNotification) {
+          await registration.showNotification(title, {
+            body,
+            icon: 'hangyo_open.png',
+            badge: 'hangyo_open.png',
+            tag: 'hangyodon-admin-test'
+          });
+          setStatusMessage('テスト通知を送信しました。', 'success');
+          return;
+        }
+      }
+    } catch (error) {
+      console.error('Admin notification via service worker failed:', error);
+    }
+
+    if ('Notification' in window) {
+      if (Notification.permission !== 'granted') {
+        const permission = await Notification.requestPermission();
+        if (permission !== 'granted') {
+          setStatusMessage('通知の許可が必要です。', 'error');
+          return;
+        }
+      }
+      new Notification(title, {
+        body,
+        icon: 'hangyo_open.png',
+        tag: 'hangyodon-admin-test'
+      });
+      setStatusMessage('テスト通知を送信しました。', 'success');
+      return;
+    }
+
+    setStatusMessage('この端末では通知を送れません。', 'error');
+  }
+
+  doLocalSend();
+}
+
 function resetAll() {
-  if (!canOperate()) return;
-  const password = window.prompt('管理者パスワードを入力してください。');
-  if (password === null) return;
-  if (password !== '1234') {
-    setStatusMessage('パスワードが違います。', 'error');
+  const confirmed = window.confirm('本当に全リセットしますか？');
+  if (!confirmed) {
+    setStatusMessage('全リセットはキャンセルされました。', 'info');
     return;
   }
 
   resetGame();
+  closeAdminMenu();
   setStatusMessage('ゲームを全リセットしました。', 'success');
 }
 
@@ -683,22 +835,49 @@ function registerGameActionHandlers() {
   const walkBtn = document.getElementById('walk-btn');
   const bathBtn = document.getElementById('bath-btn');
   const jobBtn = document.getElementById('job-btn');
-  const resetBtn = document.getElementById('reset-all-btn');
+  const adminBtn = document.getElementById('admin-btn');
   const feedCancel = document.getElementById('feed-cancel');
   const walkPopupOk = document.getElementById('walk-popup-ok');
   const bathPopupOk = document.getElementById('bath-popup-ok');
   const jobWorkBtn = document.getElementById('job-work-btn');
   const jobFinishBtn = document.getElementById('job-finish-btn');
+  const adminLoginBtn = document.getElementById('admin-login-btn');
+  const adminCancelBtn = document.getElementById('admin-password-cancel-btn');
+  const adminSleepToggleBtn = document.getElementById('admin-sleep-toggle-btn');
+  const adminSendPushBtn = document.getElementById('admin-send-push-btn');
+  const adminResetMenuBtn = document.getElementById('admin-reset-btn');
+  const adminCloseMenuBtn = document.getElementById('admin-close-btn');
+
+  const adminPasswordInput = document.getElementById('admin-password-input');
+  if (adminPasswordInput) {
+    adminPasswordInput.addEventListener('keydown', event => {
+      if (event.key === 'Enter') {
+        handleAdminLogin();
+      }
+    });
+  }
 
   if (walkBtn) walkBtn.addEventListener('click', walkHangyodon);
   if (bathBtn) bathBtn.addEventListener('click', batheHangyodon);
   if (jobBtn) jobBtn.addEventListener('click', startJob);
-  if (resetBtn) resetBtn.addEventListener('click', resetAll);
+  if (adminBtn) adminBtn.addEventListener('click', openAdminPasswordModal);
   if (feedCancel) feedCancel.addEventListener('click', hideFeedMenu);
   if (walkPopupOk) walkPopupOk.addEventListener('click', closeWalkPopup);
   if (bathPopupOk) bathPopupOk.addEventListener('click', closeBathPopup);
   if (jobWorkBtn) jobWorkBtn.addEventListener('click', workAtJob);
   if (jobFinishBtn) jobFinishBtn.addEventListener('click', finishJob);
+  if (adminLoginBtn) adminLoginBtn.addEventListener('click', handleAdminLogin);
+  if (adminCancelBtn) adminCancelBtn.addEventListener('click', closeAdminPasswordModal);
+  if (adminSleepToggleBtn) {
+    adminSleepToggleBtn.addEventListener('click', () => {
+      setSleepModeEnabled(!isSleepModeEnabled(hangyodon));
+      const label = document.getElementById('admin-sleep-toggle-btn');
+      if (label) label.textContent = isSleepModeEnabled(hangyodon) ? '睡眠モード：ON' : '睡眠モード：OFF';
+    });
+  }
+  if (adminSendPushBtn) adminSendPushBtn.addEventListener('click', sendAdminTestNotification);
+  if (adminResetMenuBtn) adminResetMenuBtn.addEventListener('click', resetAll);
+  if (adminCloseMenuBtn) adminCloseMenuBtn.addEventListener('click', closeAdminMenu);
 
   document.querySelectorAll('#shop button').forEach(button => {
     button.addEventListener('click', () => buyShopItem(button.dataset.item));
@@ -712,14 +891,12 @@ let blinkSwitchTimeoutId = null;
 function updateHangyoImage() {
   if (!hangyoImg || !hangyodon) return;
 
-  const sleepingNow = isHangyodonSleepingNow();
-
   if (hangyodon.game_over) {
     hangyoImg.src = 'hangyo_open.png';
     return;
   }
 
-  if (sleepingNow) {
+  if (isHangyodonSleepingNow()) {
     hangyoImg.src = 'hangyo_sleep.png';
     return;
   }
@@ -793,9 +970,6 @@ function updateUI() {
     }
   }
 
-  const resetBtn = document.getElementById('reset-all-btn');
-  if (resetBtn) resetBtn.disabled = hangyodon.game_over || sleepNow;
-
   const moodEl = document.getElementById('mood-value');
   if (moodEl) moodEl.textContent = hangyodon.mood;
 
@@ -832,7 +1006,6 @@ function updateUI() {
 
 function randomBlink() {
   if (!hangyoImg || !hangyodon || hangyodon.game_over || isHangyodonSleepingNow()) {
-    updateHangyoImage();
     return;
   }
 
@@ -840,16 +1013,12 @@ function randomBlink() {
   const randomTime = Math.random() * 4000 + 2000;
   blinkTimeoutId = setTimeout(() => {
     if (!hangyoImg || !hangyodon || hangyodon.game_over || isHangyodonSleepingNow()) {
-      updateHangyoImage();
-      stopBlinkLoop();
       return;
     }
 
     hangyoImg.src = 'hangyo_close.png';
     blinkSwitchTimeoutId = setTimeout(() => {
       if (!hangyoImg || !hangyodon || hangyodon.game_over || isHangyodonSleepingNow()) {
-        updateHangyoImage();
-        stopBlinkLoop();
         return;
       }
 
@@ -859,4 +1028,28 @@ function randomBlink() {
       randomBlink();
     }, 200);
   }, randomTime);
+}
+
+registerGameActionHandlers();
+
+hangyodon = getDefaultHangyodonState();
+loadGame();
+randomBlink();
+
+const startGameBtn = document.getElementById('start-game-btn');
+if (startGameBtn) {
+  startGameBtn.addEventListener('click', startNewGame);
+}
+
+updateUI();
+
+const adminBtn = document.getElementById('admin-btn');
+if (adminBtn) {
+  adminBtn.disabled = false;
+  adminBtn.textContent = '管理者';
+}
+
+const adminSleepToggleBtn = document.getElementById('admin-sleep-toggle-btn');
+if (adminSleepToggleBtn) {
+  adminSleepToggleBtn.textContent = isSleepModeEnabled(hangyodon) ? '睡眠モード：ON' : '睡眠モード：OFF';
 }

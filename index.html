@@ -30,9 +30,29 @@
       <button id="walk-btn">散歩する</button>
       <button id="bath-btn">お風呂に入れる</button>
       <button id="job-btn">お金を稼ぐ</button>
-      <button id="reset-all-btn">全リセット</button>
+      <button id="admin-btn" class="admin-btn">管理者</button>
 
       <div id="status-message" class="status-message" aria-live="polite"></div>
+
+      <div id="admin-password-modal" class="admin-modal" style="display:none;">
+        <div class="admin-modal-card">
+          <h3>管理者パスワード</h3>
+          <label for="admin-password-input" class="admin-label">管理者パスワード</label>
+          <input id="admin-password-input" type="password" autocomplete="off" />
+          <div class="admin-actions">
+            <button id="admin-login-btn" type="button">ログイン</button>
+            <button id="admin-password-cancel-btn" type="button" class="secondary-btn">キャンセル</button>
+          </div>
+        </div>
+      </div>
+
+      <div id="admin-menu" class="admin-menu" style="display:none;">
+        <h3>管理者メニュー</h3>
+        <button id="admin-sleep-toggle-btn" type="button">睡眠モード：ON</button>
+        <button id="admin-send-push-btn" type="button">通知を送る</button>
+        <button id="admin-reset-btn" type="button">全リセット</button>
+        <button id="admin-close-btn" type="button" class="secondary-btn">閉じる</button>
+      </div>
 
       <div id="push-notification-panel" class="push-notification-panel">
         <button id="enable-push-btn" class="push-btn">🔔 通知をONにする</button>
