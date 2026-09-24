@@ -31,6 +31,14 @@ const shopItems = {
   pan: { price: 100, hunger: 10, label: 'パン' }
 };
 
+// レベルアップに必要なEXPを計算する関数
+// 各レベルに必要な総EXPを返す（ベース: レベルごとに 100 + (レベル-1)*50）
+function requiredExp(level) {
+  if (level < 1) return 0;
+  // レベル1: 100, レベル2: 250, レベル3: 400 ...
+  return 100 + (level - 1) * 150;
+}
+
 function toLocalDateKey(date = new Date()) {
   const y = date.getFullYear();
   const m = String(date.getMonth() + 1).padStart(2, '0');
