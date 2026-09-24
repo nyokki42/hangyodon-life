@@ -353,3 +353,40 @@ body {
   background: #2eb82e;
 }
 
+.push-notification-panel {
+  margin: 14px auto 8px;
+  padding: 12px 14px;
+  background: rgba(255, 255, 255, 0.72);
+  border: 2px solid #8ec5ff;
+  border-radius: 12px;
+  text-align: center;
+  max-width: 320px;
+}
+
+.push-btn {
+  padding: 10px 16px;
+  border: none;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #ffcc80, #ff9d4d);
+  color: #1f2937;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(255, 157, 77, 0.25);
+}
+
+.push-btn-secondary {
+  background: linear-gradient(135deg, #e5e7eb, #cbd5e1);
+}
+
+.push-help-text,
+.ios-install-hint {
+  margin: 8px 0 0;
+  font-size: 12px;
+  color: #334155;
+  line-height: 1.5;
+}
+
+.ios-install-hint {
+  color: #1d4ed8;
+}
+

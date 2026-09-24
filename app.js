@@ -13,6 +13,206 @@ const feedBtn = document.getElementById('feed-btn');
 const hungerBar = document.getElementById('hunger-bar');
 const statusMessage = document.getElementById('status-message');
 
+const PUSH_VAPID_PUBLIC_KEY = 'BOs7vrRNkcraSCGjHZTVe_ywnnRfb2Ko6x0r0y2K2gJxQcMt_DtfvhUn8S-oOYFjXUHxwQYxMVZXi9ueKdwkJM8';
+const PUSH_STORAGE_KEY = 'hangyodonPushEnabled';
+
+function isPushSupported() {
+  return 'Notification' in window && 'serviceWorker' in navigator && 'PushManager' in window;
+}
+
+function urlBase64ToUint8Array(base64String) {
+  if (!base64String || base64String.includes('PASTE_') || base64String.includes('YOUR_')) {
+    return new Uint8Array();
+  }
+
+  const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
+  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+  const binary = atob(base64);
+  const output = new Uint8Array(binary.length);
+
+  for (let i = 0; i < binary.length; i += 1) {
+    output[i] = binary.charCodeAt(i);
+  }
+
+  return output;
+}
+
+function updatePushButtons(isEnabled) {
+  const enableBtn = document.getElementById('enable-push-btn');
+  const disableBtn = document.getElementById('disable-push-btn');
+  const helpText = document.getElementById('push-help-text');
+
+  if (enableBtn) enableBtn.style.display = isEnabled ? 'none' : 'block';
+  if (disableBtn) disableBtn.style.display = isEnabled ? 'block' : 'none';
+  if (helpText) {
+    helpText.textContent = isEnabled
+      ? 'この端末では通知を受け取る設定です。'
+      : 'スマートフォンに空腹時の通知を受け取れます。';
+  }
+
+  localStorage.setItem(PUSH_STORAGE_KEY, isEnabled ? '1' : '0');
+}
+
+async function registerServiceWorker() {
+  if (!('serviceWorker' in navigator)) return false;
+
+  try {
+    const registration = await navigator.serviceWorker.register('./sw.js', { scope: './' });
+    return !!registration;
+  } catch (error) {
+    console.error('Service Worker registration error:', error);
+    return false;
+  }
+}
+
+async function savePushSubscriptionToSupabase(subscription) {
+  if (!supabaseClient) {
+    setStatusMessage('Supabaseの接続が無いため、通知購読を保存できません。', 'error');
+    return false;
+  }
+
+  if (!subscription || !subscription.endpoint) return false;
+
+  const keyP256dh = subscription.getKey ? subscription.getKey('p256dh') : null;
+  const keyAuth = subscription.getKey ? subscription.getKey('auth') : null;
+
+  const payload = {
+    pet_id: 1,
+    endpoint: subscription.endpoint,
+    p256dh: keyP256dh ? arrayBufferToBase64(keyP256dh) : null,
+    auth: keyAuth ? arrayBufferToBase64(keyAuth) : null,
+    is_active: true,
+    platform: /Android/i.test(navigator.userAgent) ? 'android' : /iPhone|iPad|iPod/i.test(navigator.userAgent) ? 'ios' : 'browser',
+    device_label: navigator.userAgent,
+    updated_at: new Date().toISOString()
+  };
+
+  const { error } = await supabaseClient.from('push_subscriptions').upsert(payload, { onConflict: 'endpoint' });
+  if (error) {
+    console.error('Push subscription save error:', error);
+    setStatusMessage('通知購読の保存に失敗しました。', 'error');
+    return false;
+  }
+
+  return true;
+}
+
+async function removePushSubscriptionFromSupabase(endpoint) {
+  if (!supabaseClient || !endpoint) return;
+
+  await supabaseClient.from('push_subscriptions').update({ is_active: false, updated_at: new Date().toISOString() }).eq('endpoint', endpoint);
+}
+
+function arrayBufferToBase64(buffer) {
+  let binary = '';
+  const bytes = new Uint8Array(buffer);
+  for (let i = 0; i < bytes.byteLength; i += 1) {
+    binary += String.fromCharCode(bytes[i]);
+  }
+  return btoa(binary);
+}
+
+async function enablePushNotifications() {
+  if (!isPushSupported()) {
+    setStatusMessage('この端末ではWeb Pushが使えません。iPhoneではホーム画面に追加してから試してください。', 'error');
+    return;
+  }
+
+  if (!('Notification' in window)) {
+    setStatusMessage('ブラウザが通知APIをサポートしていません。', 'error');
+    return;
+  }
+
+  if (Notification.permission === 'default') {
+    const permission = await Notification.requestPermission();
+    if (permission !== 'granted') {
+      setStatusMessage('通知の許可が必要です。設定から通知をオンにしてください。', 'error');
+      return;
+    }
+  }
+
+  if (Notification.permission !== 'granted') {
+    setStatusMessage('通知が拒否されています。設定からONにしてください。', 'error');
+    return;
+  }
+
+  if (!PUSH_VAPID_PUBLIC_KEY || PUSH_VAPID_PUBLIC_KEY.includes('PASTE_') || PUSH_VAPID_PUBLIC_KEY.includes('YOUR_')) {
+    setStatusMessage('VAPID公開鍵が未設定です。Supabase Secret と app.js の公開鍵を設定してください。', 'error');
+    return;
+  }
+
+  await registerServiceWorker();
+
+  const registration = await navigator.serviceWorker.ready;
+  let subscription = await registration.pushManager.getSubscription();
+
+  if (!subscription) {
+    subscription = await registration.pushManager.subscribe({
+      userVisibleOnly: true,
+      applicationServerKey: urlBase64ToUint8Array(PUSH_VAPID_PUBLIC_KEY)
+    });
+  }
+
+  const saved = await savePushSubscriptionToSupabase(subscription);
+  if (saved) {
+    updatePushButtons(true);
+    setStatusMessage('この端末で通知をONにしました。', 'success');
+  }
+}
+
+async function disablePushNotifications() {
+  if (!('serviceWorker' in navigator)) return;
+
+  try {
+    const registration = await navigator.serviceWorker.ready;
+    const subscription = await registration.pushManager.getSubscription();
+
+    if (subscription) {
+      await subscription.unsubscribe();
+      await removePushSubscriptionFromSupabase(subscription.endpoint);
+    }
+
+    updatePushButtons(false);
+    setStatusMessage('通知をOFFにしました。', 'info');
+  } catch (error) {
+    console.error('Push unsubscribe error:', error);
+    setStatusMessage('通知の停止に失敗しました。', 'error');
+  }
+}
+
+function registerPushNotificationHandlers() {
+  const enableBtn = document.getElementById('enable-push-btn');
+  const disableBtn = document.getElementById('disable-push-btn');
+
+  if (enableBtn) {
+    enableBtn.addEventListener('click', enablePushNotifications);
+  }
+
+  if (disableBtn) {
+    disableBtn.addEventListener('click', disablePushNotifications);
+  }
+
+  const isEnabled = ('Notification' in window && Notification.permission === 'granted') || localStorage.getItem(PUSH_STORAGE_KEY) === '1';
+  updatePushButtons(isEnabled);
+}
+
+function maybeShowLocalHungerNotification() {
+  if (!('Notification' in window) || Notification.permission !== 'granted') return;
+  if (hangyodon.hunger > 20) return;
+
+  const today = new Date().toDateString();
+  const lastNotified = hangyodon.lastHungerNotificationDate ? new Date(hangyodon.lastHungerNotificationDate).toDateString() : null;
+
+  if (lastNotified === today) return;
+
+  hangyodon.lastHungerNotificationDate = new Date().toISOString();
+  new Notification('🍙 ハンギョドンがお腹すいてるよ！', {
+    body: 'ご飯をあげてね。',
+    icon: 'hangyo_open.png',
+    tag: 'hangyodon-hunger-low'
+  });
+}
+
 function getRandomHour(start, end) {
   return Math.floor(Math.random() * (end - start + 1)) + start;
 }
@@ -27,9 +227,22 @@ function safeNumber(value, fallback) {
 }
 
 function normalizeInventory(value) {
-  if (!value || typeof value !== 'object') return {};
+  if (!value) return {};
+
+  let parsed = value;
+  if (typeof value === 'string') {
+    try {
+      parsed = JSON.parse(value);
+    } catch (error) {
+      console.error('Inventory parse error:', error, value);
+      return {};
+    }
+  }
+
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return {};
+
   return Object.fromEntries(
-    Object.entries(value)
+    Object.entries(parsed)
       .filter(([key, qty]) => key && Number(qty) > 0)
       .map(([key, qty]) => [key, Number(qty)])
   );
@@ -203,6 +416,7 @@ async function ensureSupabaseRow() {
       level: 1,
       exp: 0,
       money: 100,
+      inventory: {},
       last_updated: new Date().toISOString()
     };
 
@@ -224,6 +438,7 @@ async function syncFromSupabase() {
     if (error) throw error;
 
     const cached = readLocalGameCache() || getDefaultHangyodonState();
+    const remoteInventory = normalizeInventory(data.inventory || cached.inventory || {});
     const baseState = {
       ...cached,
       hunger: safeNumber(data.hunger, cached.hunger),
@@ -231,6 +446,7 @@ async function syncFromSupabase() {
       level: safeNumber(data.level, cached.level),
       exp: safeNumber(data.exp, cached.exp),
       money: safeNumber(data.money, cached.money),
+      inventory: remoteInventory,
       meetingDate: cached.meetingDate || new Date().toISOString(),
       lastBathDate: cached.lastBathDate || null,
       lastHungerNotificationDate: cached.lastHungerNotificationDate || null,
@@ -243,7 +459,7 @@ async function syncFromSupabase() {
 
     hangyodon = progressStateToRuntime({
       ...merged,
-      inventory: normalizeInventory(cached.inventory || {})
+      inventory: remoteInventory
     });
 
     if (hangyodon.mood <= -100) {
@@ -256,7 +472,11 @@ async function syncFromSupabase() {
     setStatusMessage('共有データと同期しました。', 'success');
   } catch (error) {
     console.error('Supabase sync error:', error);
-    setStatusMessage('Supabaseに接続できませんでした。ローカル保存を表示します。', 'error');
+    if (error?.message && error.message.includes('inventory')) {
+      setStatusMessage('Supabase に inventory 列がありません。SQL で inventory を追加してください。', 'error');
+    } else {
+      setStatusMessage('Supabaseに接続できませんでした。ローカル保存を表示します。', 'error');
+    }
 
     const cached = readLocalGameCache();
     if (cached) {
@@ -280,6 +500,7 @@ async function syncToSupabase() {
       level: Math.max(1, Number(hangyodon.level) || 1),
       exp: Math.max(0, Number(hangyodon.exp) || 0),
       money: Math.max(0, Number(hangyodon.money) || 0),
+      inventory: normalizeInventory(hangyodon.inventory),
       last_updated: new Date().toISOString()
     };
 
@@ -291,7 +512,11 @@ async function syncToSupabase() {
   } catch (error) {
     console.error('Supabase save error:', error);
     saveLocalGameCache();
-    setStatusMessage('共有データの保存に失敗しました。ローカルに一時保存されています。', 'error');
+    if (error?.message && error.message.includes('inventory')) {
+      setStatusMessage('Supabase の inventory 列がありません。SQL で inventory を追加してください。', 'error');
+    } else {
+      setStatusMessage('共有データの保存に失敗しました。ローカルに一時保存されています。', 'error');
+    }
     return false;
   }
 }
@@ -698,6 +923,7 @@ setInterval(() => {
       const lastNotified = hangyodon.lastHungerNotificationDate ? new Date(hangyodon.lastHungerNotificationDate).toDateString() : null;
       if (lastNotified !== today) {
         hangyodon.lastHungerNotificationDate = new Date().toISOString();
+        maybeShowLocalHungerNotification();
       }
     }
   }
@@ -778,6 +1004,10 @@ if (supabaseClient) {
 loadGame();
 updateUI();
 randomBlink();
+registerPushNotificationHandlers();
+if (isPushSupported()) {
+  registerServiceWorker();
+}
 
 if (supabaseClient) {
   supabaseClient.channel('hangyodon_shared').on('postgres_changes', {

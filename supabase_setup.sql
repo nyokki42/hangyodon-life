@@ -6,23 +6,108 @@ create table if not exists public.hangyodon (
   level integer not null default 1,
   exp integer not null default 0,
   money integer not null default 100,
-  last_updated timestamptz not null default now()
+  inventory jsonb not null default '{}'::jsonb,
+  last_updated timestamptz not null default now(),
+  last_hunger_push_at timestamptz
 );
 
--- 共有データとして 1 匹のみ使用
-insert into public.hangyodon (id, hunger, mood, level, exp, money, last_updated)
-values (1, 100, 100, 1, 0, 100, now())
+-- 既存の行があれば壊さない
+insert into public.hangyodon (id, hunger, mood, level, exp, money, inventory, last_updated)
+values (1, 100, 100, 1, 0, 100, '{}'::jsonb, now())
 on conflict (id) do nothing;
+
+-- 既存レコードに inventory 列がなければ追加
+alter table public.hangyodon
+  add column if not exists inventory jsonb not null default '{}'::jsonb;
+
+-- 既存のデータに対して inventory を安全に埋める
+update public.hangyodon
+set inventory = coalesce(inventory, '{}'::jsonb)
+where inventory is null;
 
 -- RLS を有効化
 alter table public.hangyodon enable row level security;
 
--- すべての読み書きを許可（公開前提の簡易構成）
-create policy if not exists "Allow all access to hangyodon"
+-- id=1 のみ許可する最小ポリシー
+create policy if not exists "hangyodon_select_id_1"
   on public.hangyodon
-  for all
-  using (true)
-  with check (true);
+  for select
+  using (id = 1);
 
--- Realtime を有効化
+create policy if not exists "hangyodon_insert_id_1"
+  on public.hangyodon
+  for insert
+  with check (id = 1);
+
+create policy if not exists "hangyodon_update_id_1"
+  on public.hangyodon
+  for update
+  using (id = 1)
+  with check (id = 1);
+
+-- Web Push で使う購読情報
+create table if not exists public.push_subscriptions (
+  id bigserial primary key,
+  pet_id bigint not null default 1,
+  endpoint text not null unique,
+  p256dh text,
+  auth text,
+  is_active boolean not null default true,
+  platform text not null default 'browser',
+  device_label text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create table if not exists public.push_notification_history (
+  id bigserial primary key,
+  pet_id bigint not null default 1,
+  endpoint text not null,
+  notification_type text not null default 'hunger_low',
+  sent_at timestamptz not null default now(),
+  payload jsonb not null default '{}'::jsonb,
+  unique (pet_id, endpoint, notification_type, (date(sent_at)))
+);
+
+alter table public.push_subscriptions enable row level security;
+alter table public.push_notification_history enable row level security;
+
+create policy if not exists "push_subscriptions_select_id_1"
+  on public.push_subscriptions
+  for select
+  using (pet_id = 1);
+
+create policy if not exists "push_subscriptions_insert_id_1"
+  on public.push_subscriptions
+  for insert
+  with check (pet_id = 1);
+
+create policy if not exists "push_subscriptions_update_id_1"
+  on public.push_subscriptions
+  for update
+  using (pet_id = 1)
+  with check (pet_id = 1);
+
+create policy if not exists "push_subscriptions_delete_id_1"
+  on public.push_subscriptions
+  for delete
+  using (pet_id = 1);
+
+create policy if not exists "push_history_select_id_1"
+  on public.push_notification_history
+  for select
+  using (pet_id = 1);
+
+create policy if not exists "push_history_insert_id_1"
+  on public.push_notification_history
+  for insert
+  with check (pet_id = 1);
+
+create index if not exists push_subscriptions_pet_active_idx
+  on public.push_subscriptions (pet_id, is_active);
+
+create index if not exists push_notification_history_pet_type_idx
+  on public.push_notification_history (pet_id, notification_type, sent_at desc);
+
+-- Realtime を有効化（存在する場合のみ）
 alter publication supabase_realtime add table public.hangyodon;
