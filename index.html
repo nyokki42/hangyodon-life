@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>ハンギョドン∞ライフ</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <div class="game">
+    <div class="character">
+      <img src="hangyo_open.png" class="character-img" id="hangyo">
+      <div id="comment-bubble" class="comment-bubble"></div>
+    </div>
+
+    <div class="status">
+      <p>レベル: <span id="level-value">1</span> &nbsp; 経験: <span id="exp-value">0/0</span></p>
+      <p>お腹</p>
+      <div class="gauge">
+        <div id="hunger-bar" class="gauge-fill"></div>
+      </div>
+      <button id="feed-btn">ご飯をあげる</button>
+      <button id="walk-btn">散歩する</button>
+      <button id="bath-btn">お風呂に入れる</button>
+      <button id="job-btn">お金を稼ぐ</button>
+      <button id="reset-all-btn">全リセット</button>
+
+      <div id="status-message" class="status-message" aria-live="polite"></div>
+
+      <!-- バイトミニゲーム -->
+      <div id="job-minigame" class="job-minigame" style="display:none;">
+        <div class="minigame-content">
+          <p id="job-status">仕事中！ボタンを連打してお金を稼ぐ！</p>
+          <p>残り時間: <span id="job-timer">10</span>秒</p>
+          <p>稼いだ金額: <span id="job-money">0</span>円</p>
+          <button id="job-work-btn" class="job-work-btn">稼ぐ！</button>
+        </div>
+      </div>
+
+      <!-- フィードメニュー -->
+      <div id="feed-menu" class="feed-menu" style="display:none;">
+        <p>あげるものを選んでね</p>
+        <div id="feed-options"></div>
+        <button id="feed-cancel">キャンセル</button>
+      </div>
+
+      <!-- 散歩イベント用ポップアップ -->
+      <div id="walk-popup" class="walk-popup" style="display:none;">
+        <div class="walk-popup-content">
+          <p id="walk-popup-message"></p>
+          <button id="walk-popup-ok">OK</button>
+        </div>
+      </div>
+
+      <!-- お風呂イベント用ポップアップ -->
+      <div id="bath-popup" class="bath-popup" style="display:none;">
+        <div class="bath-popup-content">
+          <p id="bath-popup-message"></p>
+          <button id="bath-popup-ok">OK</button>
+        </div>
+      </div>
+      <p>機嫌: <span id="mood-value">0</span></p>
+      <p>お金: <span id="money-value">1000</span>円</p>
+      <p>出会った日: <span id="meeting-date"></span></p>
+
+      <div id="shop" class="shop">
+        <h3>買い物</h3>
+        <button data-item="onigiri">おにぎり (100円)</button>
+        <button data-item="pan">パン (100円)</button>
+      </div>
+
+      <div id="inventory" class="inventory">
+        <h3>所持品</h3>
+        <ul id="inventory-list"></ul>
+      </div>
+    </div>
+  </div>
+
+  <!-- バイト終了用の右上ボタン -->
+  <button id="job-finish-btn" class="job-finish-btn" style="display:none;">バイト終了</button>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="app.js"></script>
+</body>
+</html>
