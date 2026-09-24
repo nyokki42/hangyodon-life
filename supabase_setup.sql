@@ -7,14 +7,23 @@ create table if not exists public.hangyodon (
   exp integer not null default 0,
   money integer not null default 100,
   inventory jsonb not null default '{}'::jsonb,
+  sleep_start_at timestamptz,
+  sleep_end_at timestamptz,
+  sleep_schedule_date text,
   last_updated timestamptz not null default now(),
   last_hunger_push_at timestamptz
 );
 
 -- 既存の行があれば壊さない
-insert into public.hangyodon (id, hunger, mood, level, exp, money, inventory, last_updated)
-values (1, 100, 100, 1, 0, 100, '{}'::jsonb, now())
+insert into public.hangyodon (id, hunger, mood, level, exp, money, inventory, sleep_start_at, sleep_end_at, sleep_schedule_date, last_updated)
+values (1, 100, 100, 1, 0, 100, '{}'::jsonb, null, null, null, now())
 on conflict (id) do nothing;
+
+-- 既存レコードに sleep 系列がなければ追加
+alter table public.hangyodon
+  add column if not exists sleep_start_at timestamptz,
+  add column if not exists sleep_end_at timestamptz,
+  add column if not exists sleep_schedule_date text;
 
 -- 既存レコードに inventory 列がなければ追加
 alter table public.hangyodon

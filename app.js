@@ -428,13 +428,19 @@ function applyElapsedMinutesToState(state, elapsedMinutes) {
   if (elapsedMinutes <= 0) return next;
 
   const startedAt = Date.now() - (elapsedMinutes * 60 * 1000);
+  let awakeMinutes = 0;
 
   for (let minute = 0; minute < elapsedMinutes; minute += 1) {
     const target = startedAt + (minute * 60 * 1000);
     if (!isSleepingAtInstant(next, target)) {
-      next.hunger = Math.max(0, next.hunger - 1);
+      awakeMinutes += 1;
       next.mood = Math.max(-100, next.mood - 1);
     }
+  }
+
+  const hungerLoss = Math.floor(awakeMinutes / 5);
+  if (hungerLoss > 0) {
+    next.hunger = Math.max(0, next.hunger - hungerLoss);
   }
 
   if (next.hunger <= 0) {
@@ -1302,6 +1308,38 @@ function randomBlink() {
   }, randomTime);
 }
 
+function generateComment() {
+  if (hangyodon.sleeping) {
+    return 'ZZZ...';
+  }
+
+  const now = new Date();
+  const h = now.getHours();
+  const comments = [];
+
+  if (hangyodon.hunger <= 20) comments.push('お腹すいた...');
+  if (hangyodon.mood < 0) comments.push('ちょっと元気ないかも');
+  if (hangyodon.mood > 50) comments.push('いい気分！');
+  if (h >= 6 && h < 12) comments.push('朝だね〜');
+  if (h >= 12 && h < 18) comments.push('お昼だよ！');
+  if (h >= 18 && h < 22) comments.push('夕方の時間だ〜');
+
+  comments.push('何かいいことあるかな？');
+  comments.push('ふふ、気まぐれだよ。');
+
+  return comments[Math.floor(Math.random() * comments.length)];
+}
+
+function showComment() {
+  const bubble = document.getElementById('comment-bubble');
+  if (!bubble) return;
+  bubble.textContent = generateComment();
+  bubble.style.display = 'block';
+  setTimeout(() => {
+    bubble.style.display = 'none';
+  }, 9000);
+}
+
 registerGameActionHandlers();
 
 hangyodon = getDefaultHangyodonState();
@@ -1329,3 +1367,5 @@ const adminSleepToggleBtn = document.getElementById('admin-sleep-toggle-btn');
 if (adminSleepToggleBtn) {
   adminSleepToggleBtn.textContent = isSleepModeEnabled(hangyodon) ? '睡眠モード：ON' : '睡眠モード：OFF';
 }
+
+setInterval(showComment, 10000);

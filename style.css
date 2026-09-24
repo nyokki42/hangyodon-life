@@ -4,6 +4,7 @@
 
 html {
   font-size: clamp(12px, 2.5vw, 16px);
+  height: 100%;
 }
 
 body {
@@ -11,10 +12,13 @@ body {
   justify-content: center;
   align-items: flex-start;
   min-height: 100dvh;
+  height: 100dvh;
   background: #d0f4ff;
   margin: 0;
-  padding: clamp(8px, 2vw, 16px);
+  padding: max(4px, env(safe-area-inset-top)) 0 max(6px, env(safe-area-inset-bottom));
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  overflow-x: hidden;
+  overflow-y: hidden;
 }
 
 .game {
@@ -22,38 +26,57 @@ body {
   flex-direction: column;
   align-items: center;
   text-align: center;
-  width: 100%;
-  max-width: clamp(320px, 95vw, 600px);
-  height: auto;
+  width: min(100%, 430px);
+  max-width: 430px;
+  min-height: 100dvh;
+  height: 100dvh;
   flex: 1;
-  gap: clamp(8px, 2vw, 16px);
+  gap: 2px;
+  padding: 0 8px 0;
 }
 
 .character {
   position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
   flex-shrink: 0;
+  margin-top: 0;
+  gap: 0;
 }
 
 .character-img {
-  width: clamp(200px, 60vw, 400px);
+  width: min(58vw, 260px);
   height: auto;
   max-width: 100%;
+  display: block;
+  margin: 0 auto;
+}
+
+.comment-area {
+  width: 100%;
+  min-height: clamp(32px, 5vw, 52px);
+  height: clamp(32px, 5vw, 52px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .status {
   text-align: center;
   width: 100%;
-  margin-top: clamp(8px, 2vw, 16px);
-  padding: 0 clamp(8px, 2vw, 16px);
+  margin-top: 0;
+  padding: 0 4px;
 }
 
 .gauge {
   width: 100%;
-  max-width: clamp(200px, 60vw, 300px);
-  height: clamp(16px, 4vw, 28px);
+  max-width: clamp(180px, 52vw, 260px);
+  height: clamp(12px, 2.5vw, 16px);
   background: #ddd;
-  margin: clamp(6px, 1.5vw, 12px) auto;
-  border-radius: clamp(6px, 1.5vw, 10px);
+  margin: 2px auto 4px;
+  border-radius: 6px;
   overflow: hidden;
 }
 
@@ -65,16 +88,17 @@ body {
 }
 
 #feed-btn, #walk-btn, #bath-btn, #job-btn, #admin-btn {
-  padding: clamp(10px, 2.5vw, 16px) clamp(12px, 3vw, 20px);
-  font-size: clamp(14px, 3vw, 18px);
+  padding: 6px 10px;
+  font-size: clamp(12px, 2.7vw, 15px);
   background: #87ceeb;
-  border: clamp(1px, 0.5vw, 3px) solid #4169e1;
-  border-radius: clamp(6px, 1.5vw, 10px);
+  border: 2px solid #4169e1;
+  border-radius: 6px;
   cursor: pointer;
   transition: all 0.3s;
-  min-height: clamp(40px, 10vw, 56px);
+  min-height: 36px;
   flex: 1;
-  min-width: clamp(36px, 8vw, 48px);
+  min-width: 36px;
+  margin: 2px 0;
 }
 #walk-btn {
   background: #98fb98;
@@ -104,6 +128,7 @@ body {
   border-color: #8b008b;
   width: 100%;
   flex: 1 1 100%;
+  margin-top: 2px;
 }
 #admin-btn:hover, #admin-btn:active {
   background: #ee82ee;
@@ -116,14 +141,14 @@ body {
 }
 
 .status-message {
-  margin: clamp(6px, 1.5vw, 12px) auto;
-  padding: clamp(6px, 1.5vw, 12px) clamp(8px, 2vw, 16px);
-  border-radius: clamp(6px, 1.5vw, 10px);
-  font-size: clamp(12px, 2.5vw, 16px);
-  min-height: clamp(20px, 4vw, 28px);
+  margin: 4px auto;
+  padding: 4px 8px;
+  border-radius: 6px;
+  font-size: clamp(11px, 2.2vw, 13px);
+  min-height: 18px;
   display: none;
-  width: 90%;
-  max-width: clamp(280px, 85vw, 400px);
+  width: 96%;
+  max-width: clamp(260px, 82vw, 360px);
 }
 
 .status-message.info {
@@ -181,25 +206,25 @@ body {
 
 
 .shop, .inventory {
-  margin-top: clamp(8px, 2vw, 16px);
+  margin-top: 2px;
   text-align: left;
   width: 100%;
-  padding: 0 clamp(8px, 2vw, 16px);
+  padding: 0 8px;
 }
 .shop h3, .inventory h3 {
-  margin: clamp(6px, 1.5vw, 12px) 0 clamp(4px, 1vw, 8px) 0;
-  font-size: clamp(14px, 3vw, 18px);
+  margin: 2px 0;
+  font-size: clamp(12px, 2.5vw, 14px);
   font-weight: bold;
 }
 .shop button {
-  margin: clamp(3px, 0.75vw, 6px) clamp(3px, 0.75vw, 6px) clamp(3px, 0.75vw, 6px) 0;
-  padding: clamp(6px, 1.5vw, 10px) clamp(8px, 2vw, 12px);
-  font-size: clamp(12px, 2.5vw, 14px);
+  margin: 2px 3px 2px 0;
+  padding: 4px 8px;
+  font-size: clamp(11px, 2.2vw, 13px);
   background: #90ee90;
-  border: clamp(1px, 0.25vw, 2px) solid #4682b4;
-  border-radius: clamp(4px, 1vw, 6px);
+  border: 1px solid #4682b4;
+  border-radius: 4px;
   cursor: pointer;
-  min-height: clamp(36px, 8vw, 44px);
+  min-height: 32px;
 }
 .shop button:hover, .shop button:active {
   background: #32cd32;
@@ -217,8 +242,8 @@ body {
   margin: 0;
 }
 .inventory li {
-  font-size: clamp(12px, 2.5vw, 16px);
-  padding: clamp(4px, 1vw, 8px) 0;
+  font-size: clamp(11px, 2.2vw, 13px);
+  padding: 1px 0;
 }
 
 .job-minigame {
@@ -245,17 +270,17 @@ body {
 }
 
 .job-work-btn {
-  padding: clamp(12px, 3vw, 20px) clamp(16px, 4vw, 32px);
-  font-size: clamp(16px, 4vw, 20px);
+  padding: clamp(10px, 2.5vw, 14px) clamp(14px, 3.5vw, 22px);
+  font-size: clamp(15px, 3.2vw, 18px);
   background: #ffd700;
   border: clamp(2px, 0.5vw, 4px) solid #ff8c00;
   border-radius: clamp(8px, 2vw, 12px);
   cursor: pointer;
   font-weight: bold;
-  margin-top: clamp(12px, 3vw, 20px);
+  margin-top: clamp(10px, 2.5vw, 14px);
   transition: all 0.1s;
-  min-height: clamp(44px, 10vw, 56px);
-  min-width: clamp(100px, 30vw, 200px);
+  min-height: clamp(36px, 8vw, 48px);
+  min-width: clamp(90px, 28vw, 160px);
 }
 
 .job-work-btn:active {
@@ -263,34 +288,24 @@ body {
 }
 
 .status p {
-  margin: clamp(3px, 0.75vw, 8px) 0;
-  font-size: clamp(13px, 2.75vw, 18px);
-  line-height: 1.4;
+  margin: 2px 0;
+  font-size: clamp(12px, 2.5vw, 15px);
+  line-height: 1.3;
 }
 
 .comment-bubble {
-  position: absolute;
-  top: clamp(-50px, -8vw, -40px);
-  left: 50%;
-  transform: translateX(-50%);
-  background: #fff;
-  border: clamp(1px, 0.25vw, 2px) solid #000;
-  border-radius: clamp(6px, 1.5vw, 10px);
-  padding: clamp(6px, 1.5vw, 12px);
-  max-width: clamp(150px, 70vw, 250px);
-  font-size: clamp(12px, 2.5vw, 15px);
+  position: relative;
   display: none;
+  background: #fff;
+  border: 1px solid #000;
+  border-radius: 6px;
+  padding: clamp(4px, 1vw, 8px);
+  max-width: clamp(120px, 70vw, 200px);
+  font-size: clamp(11px, 2.2vw, 13px);
   z-index: 10;
-}
-.comment-bubble::after {
-  content: "";
-  position: absolute;
-  bottom: clamp(-8px, -1.5vw, -6px);
-  left: 50%;
-  transform: translateX(-50%);
-  border-width: clamp(6px, 1.5vw, 10px) clamp(6px, 1.5vw, 10px) 0;
-  border-style: solid;
-  border-color: #fff transparent transparent transparent;
+  margin: 0;
+  line-height: 1.3;
+  word-break: break-word;
 }
 
 .walk-popup {
@@ -396,8 +411,8 @@ body {
 }
 
 .push-notification-panel {
-  margin: clamp(10px, 2vw, 14px) auto clamp(6px, 1.5vw, 8px);
-  padding: clamp(10px, 2vw, 12px) clamp(12px, 2.5vw, 14px);
+  margin: 4px auto 2px;
+  padding: 8px 10px;
   background: rgba(255, 255, 255, 0.72);
   border: clamp(1px, 0.25vw, 2px) solid #8ec5ff;
   border-radius: clamp(10px, 2.5vw, 12px);
@@ -406,7 +421,7 @@ body {
 }
 
 .push-btn {
-  padding: clamp(8px, 2vw, 10px) clamp(12px, 3vw, 16px);
+  padding: 8px 12px;
   border: none;
   border-radius: 999px;
   background: linear-gradient(135deg, #ffcc80, #ff9d4d);
@@ -415,19 +430,15 @@ body {
   cursor: pointer;
   box-shadow: 0 4px 12px rgba(255, 157, 77, 0.25);
   font-size: clamp(13px, 2.5vw, 15px);
-  min-height: clamp(40px, 8vw, 48px);
-}
-
-.push-btn-secondary {
-  background: linear-gradient(135deg, #e5e7eb, #cbd5e1);
+  min-height: 36px;
 }
 
 .push-help-text,
 .ios-install-hint {
-  margin: clamp(6px, 1.5vw, 8px) 0 0;
+  margin: 4px 0 0;
   font-size: clamp(11px, 2vw, 12px);
   color: #334155;
-  line-height: 1.5;
+  line-height: 1.4;
 }
 
 .ios-install-hint {
@@ -591,5 +602,28 @@ body {
 
 .admin-menu {
   display: none;
+}
+
+@media (max-width: 430px) {
+  body {
+    padding-left: 0;
+    padding-right: 0;
+  }
+
+  .game {
+    width: 100%;
+    max-width: 100%;
+    padding-left: 6px;
+    padding-right: 6px;
+  }
+
+  .character-img {
+    width: min(56vw, 240px);
+  }
+
+  #feed-btn, #walk-btn, #bath-btn, #job-btn, #admin-btn {
+    font-size: clamp(11px, 2.6vw, 14px);
+    min-height: 34px;
+  }
 }
 
