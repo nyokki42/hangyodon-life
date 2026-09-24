@@ -906,6 +906,8 @@ function applySleepModeState(nextState) {
   if (!next.sleepModeEnabled) {
     next.sleeping = false;
     next.sleep_schedule_date = 'OFF';
+    next.sleep_start_at = null;
+    next.sleep_end_at = null;
   }
   return next;
 }
@@ -928,6 +930,8 @@ function setSleepModeEnabled(enabled) {
   } else {
     hangyodon.sleeping = false;
     hangyodon.sleep_schedule_date = 'OFF';
+    hangyodon.sleep_start_at = null;
+    hangyodon.sleep_end_at = null;
     setStatusMessage('睡眠モードを OFF にしました。通常時の時間経過に戻ります。', 'info');
   }
 
