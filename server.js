@@ -58,30 +58,6 @@ function sendLineMessage(userId, text) {
   });
 }
 
-// 毎分ペット状態を自動更新（機嫌-1）
-setInterval(() => {
-  db.all('SELECT userId FROM pets', [], (err, rows) => {
-    if (err) {
-      console.error('DB error:', err.message);
-      return;
-    }
-    rows.forEach(row => {
-      db.get('SELECT * FROM pets WHERE userId = ?', [row.userId], (err, pet) => {
-        if (err || !pet) return;
-        
-        // 寝ていない場合のみ機嫌-1
-        if (!pet.sleeping) {
-          const newMood = Math.max(-100, pet.mood - 1);
-          db.run('UPDATE pets SET mood = ? WHERE userId = ?', 
-            [newMood, row.userId], (err) => {
-              if (err) console.error('Update mood error:', err.message);
-            });
-        }
-      });
-    });
-  });
-}, 60 * 1000); // 1分ごと
-
 // GET /api/pet - ペット状態取得
 app.get('/api/pet/:userId', (req, res) => {
   const { userId } = req.params;

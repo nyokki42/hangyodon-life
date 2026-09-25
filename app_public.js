@@ -211,38 +211,9 @@ function getSleepingStateForHour(hour, sleepStartHour, wakeUpHour) {
 }
 
 function applyElapsedMinutesToState(state, elapsedMinutes) {
-  const next = ensureSleepSchedule({ ...state }, new Date());
-  if (elapsedMinutes <= 0) return next;
-
-  const startedAt = Date.now() - (elapsedMinutes * 60 * 1000);
-  let awakeMinutes = 0;
-
-  for (let minute = 0; minute < elapsedMinutes; minute += 1) {
-    const target = startedAt + (minute * 60 * 1000);
-    if (!isSleepingAtInstant(next, target)) {
-      awakeMinutes += 1;
-    }
-  }
-
-  const moodDecayBlocks = Math.floor(awakeMinutes / 5);
-  const hungerLowMoodDecayBlocks = next.hunger <= 20 ? moodDecayBlocks : 0;
-  const totalMoodLoss = Math.max(moodDecayBlocks, hungerLowMoodDecayBlocks);
-
-  if (totalMoodLoss > 0) {
-    next.mood = Math.max(-100, next.mood - totalMoodLoss);
-  }
-
-  const hungerLoss = Math.floor(awakeMinutes / 5);
-  if (hungerLoss > 0) {
-    next.hunger = Math.max(0, next.hunger - hungerLoss);
-  }
-
-  if (next.hunger <= 0) {
-    next.mood = Math.min(next.mood, 0);
-  }
-
-  next.sleeping = isSleepingAtInstant(next, Date.now());
-  return next;
+  // Client-side time decay is disabled.
+  // Hunger/mood decay is handled only by Supabase Cron.
+  return ensureSleepSchedule({ ...state }, new Date());
 }
 
 async function ensureSupabaseRow() {
@@ -274,6 +245,24 @@ async function ensureSupabaseRow() {
   }
 }
 
+async function updateSharedStateOnly(patch = {}) {
+  if (!supabaseClient) return true;
+
+  const cleanPatch = Object.fromEntries(
+    Object.entries(patch).filter(([, value]) => value !== undefined)
+  );
+
+  if (!Object.keys(cleanPatch).length) return true;
+
+  const { error } = await supabaseClient
+    .from('hangyodon')
+    .update(cleanPatch)
+    .eq('id', 1);
+
+  if (error) throw error;
+  return true;
+}
+
 async function syncFromSupabase() {
   if (!supabaseClient) {
     saveLocalGameCache();
@@ -287,10 +276,8 @@ async function syncFromSupabase() {
     if (error) throw error;
 
     const cached = readLocalGameCache() || getDefaultHangyodonState();
-    const remoteInventory = normalizeInventory(data.inventory || cached.inventory || {});
-    
-    // Supabase を唯一の真実とする
-    // 時間経過処理はSupabase Cron側で完全に管理
+    const remoteInventory = normalizeInventory(data.inventory ?? {});
+
     const baseState = {
       ...cached,
       hunger: safeNumber(data.hunger, cached.hunger),
@@ -304,14 +291,9 @@ async function syncFromSupabase() {
       sleep_schedule_date: data.sleep_schedule_date || cached.sleep_schedule_date || null,
       game_over: Boolean(data.game_over),
       started_at: data.started_at || cached.started_at || new Date().toISOString(),
-      meetingDate: data.started_at || cached.meetingDate || new Date().toISOString(),
-      lastBathDate: cached.lastBathDate || null,
-      lastHungerNotificationDate: cached.lastHungerNotificationDate || null,
       lastJobTime: cached.lastJobTime || 0
     };
 
-    // 時間経過処理は削除：Supabase Cron に任せる
-    // applyElapsedMinutesToState() は呼び出さない
     const bootState = ensureSleepSchedule(progressStateToRuntime(baseState), new Date());
 
     hangyodon = progressStateToRuntime({
@@ -347,13 +329,17 @@ async function syncFromSupabase() {
 async function syncToSupabase() {
   if (!supabaseClient) {
     saveLocalGameCache();
-    return;
+    return true;
   }
 
   try {
-    // 現在の Supabase の状態を取得（started_at が未設定なら設定）
-    const { data: current } = await supabaseClient.from('hangyodon').select('started_at').eq('id', 1).maybeSingle();
-    
+    const { data: current } = await supabaseClient
+      .from('hangyodon')
+      .select('started_at, inventory')
+      .eq('id', 1)
+      .maybeSingle();
+
+    const inventoryForWrite = normalizeInventory(hangyodon.inventory ?? current?.inventory ?? {});
     const payload = {
       id: 1,
       hunger: clamp(Number(hangyodon.hunger) || 0, 0, 100),
@@ -361,7 +347,7 @@ async function syncToSupabase() {
       level: Math.max(1, Number(hangyodon.level) || 1),
       exp: Math.max(0, Number(hangyodon.exp) || 0),
       money: Math.max(0, Number(hangyodon.money) || 0),
-      inventory: normalizeInventory(hangyodon.inventory),
+      inventory: inventoryForWrite,
       sleep_start_at: hangyodon.sleep_start_at || null,
       sleep_end_at: hangyodon.sleep_end_at || null,
       sleep_schedule_date: hangyodon.sleep_schedule_date || null,
@@ -369,7 +355,6 @@ async function syncToSupabase() {
       last_updated: new Date().toISOString()
     };
 
-    // started_at: Supabase に未設定ならローカルから送信、既に設定されていたら送信しない
     if (!current?.started_at) {
       payload.started_at = hangyodon.started_at || new Date().toISOString();
     }
@@ -391,10 +376,13 @@ async function syncToSupabase() {
   }
 }
 
-function saveGame() {
+async function saveGame() {
   hangyodon = ensureSleepSchedule(progressStateToRuntime(hangyodon), new Date());
-  saveLocalGameCache();
-  syncToSupabase();
+  const ok = await syncToSupabase();
+  if (ok) {
+    saveLocalGameCache();
+  }
+  return ok;
 }
 
 function resetGame() {
@@ -463,6 +451,7 @@ function loadGame() {
   }
 
   if (supabaseClient) {
+    subscribeHangyodonRealtime();
     syncFromSupabase();
   } else {
     updateUI();
