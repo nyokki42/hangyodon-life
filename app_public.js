@@ -288,6 +288,9 @@ async function syncFromSupabase() {
 
     const cached = readLocalGameCache() || getDefaultHangyodonState();
     const remoteInventory = normalizeInventory(data.inventory || cached.inventory || {});
+    
+    // Supabase を唯一の真実とする
+    // 時間経過処理はSupabase Cron側で完全に管理
     const baseState = {
       ...cached,
       hunger: safeNumber(data.hunger, cached.hunger),
@@ -300,19 +303,19 @@ async function syncFromSupabase() {
       sleep_end_at: data.sleep_end_at || cached.sleep_end_at || null,
       sleep_schedule_date: data.sleep_schedule_date || cached.sleep_schedule_date || null,
       game_over: Boolean(data.game_over),
-      meetingDate: cached.meetingDate || new Date().toISOString(),
+      started_at: data.started_at || cached.started_at || new Date().toISOString(),
+      meetingDate: data.started_at || cached.meetingDate || new Date().toISOString(),
       lastBathDate: cached.lastBathDate || null,
       lastHungerNotificationDate: cached.lastHungerNotificationDate || null,
       lastJobTime: cached.lastJobTime || 0
     };
 
+    // 時間経過処理は削除：Supabase Cron に任せる
+    // applyElapsedMinutesToState() は呼び出さない
     const bootState = ensureSleepSchedule(progressStateToRuntime(baseState), new Date());
-    const lastUpdatedMs = data.last_updated ? new Date(data.last_updated).getTime() : Date.now();
-    const elapsedMinutes = Math.max(0, Math.floor((Date.now() - lastUpdatedMs) / 60000));
-    const merged = applyElapsedMinutesToState(bootState, elapsedMinutes);
 
     hangyodon = progressStateToRuntime({
-      ...merged,
+      ...bootState,
       inventory: remoteInventory,
       game_over: Boolean(data.game_over)
     });
@@ -348,6 +351,9 @@ async function syncToSupabase() {
   }
 
   try {
+    // 現在の Supabase の状態を取得（started_at が未設定なら設定）
+    const { data: current } = await supabaseClient.from('hangyodon').select('started_at').eq('id', 1).maybeSingle();
+    
     const payload = {
       id: 1,
       hunger: clamp(Number(hangyodon.hunger) || 0, 0, 100),
@@ -356,13 +362,17 @@ async function syncToSupabase() {
       exp: Math.max(0, Number(hangyodon.exp) || 0),
       money: Math.max(0, Number(hangyodon.money) || 0),
       inventory: normalizeInventory(hangyodon.inventory),
-      started_at: hangyodon.started_at || hangyodon.meetingDate || null,
       sleep_start_at: hangyodon.sleep_start_at || null,
       sleep_end_at: hangyodon.sleep_end_at || null,
       sleep_schedule_date: hangyodon.sleep_schedule_date || null,
       game_over: Boolean(hangyodon.game_over),
       last_updated: new Date().toISOString()
     };
+
+    // started_at: Supabase に未設定ならローカルから送信、既に設定されていたら送信しない
+    if (!current?.started_at) {
+      payload.started_at = hangyodon.started_at || new Date().toISOString();
+    }
 
     const { error } = await supabaseClient.from('hangyodon').upsert(payload, { onConflict: 'id' });
     if (error) throw error;
@@ -496,7 +506,8 @@ function updateUI() {
 
   const meetEl = document.getElementById('meeting-date');
   if (meetEl) {
-    const d = new Date(hangyodon.meetingDate);
+    // started_at は Supabase から取得された唯一の正解
+    const d = new Date(hangyodon.started_at);
     meetEl.textContent = d.toLocaleString();
   }
 
